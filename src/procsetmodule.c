@@ -28,7 +28,8 @@ create_pset_from_string(ProcSetObject *self, char *pset_string)
 
     for (int index = 0; index < lenght; index++) {
         if (isdigit(pset_string[index])) {
-            tmp[index] = (pset_boundary_t) pset_string[index] - '0';
+            pset_boundary_t value = pset_string[index] - '0';
+            tmp[index] = index%2 == 0 ? value : value+1;
         } else {
             free(tmp);
             PyErr_SetString(PyExc_ValueError, "Input boundaries contains non-digits values");
@@ -98,9 +99,8 @@ ProcSet_show(ProcSetObject *self, PyObject *Py_UNUSED(ignored))
     printf("ProcSet( ");
 
         for (int index = 0; index < self->nb_boundary; index += 2) {
-            assert(self->_boundaries[index] != NULL);
             printf("%d-%d ", self->_boundaries[index],
-            self->_boundaries[index+1]);
+            self->_boundaries[index+1]-1);
         }
         printf(")");
         printf("- taille : %d\n", self->nb_boundary);
@@ -151,7 +151,6 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
 
         if (keep ^ enbound) {
             enbound = !enbound;
-            assert(new_boundaries[index] != NULL);
             new_boundaries[index] = head;
             index++;
         }
@@ -161,8 +160,7 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
 
             if (lbound_index < self->nb_boundary) {
                 lend = lbound_index%2 != 0;
-                lhead = lend ? self->_boundaries[lbound_index] 
-                             : self->_boundaries[lbound_index]+1;
+                lhead = self->_boundaries[lbound_index];
             } else { // sentinel
                 lhead = sentinel;
                 lend = false;
@@ -172,8 +170,7 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
             rbound_index++;
             if (rbound_index < other->nb_boundary) {
                 rend = rbound_index%2 != 0;
-                rhead = rend ? other->_boundaries[rbound_index] 
-                             : other->_boundaries[rbound_index]+1;
+                rhead = other->_boundaries[rbound_index];
             } else { // sentinel
                 rhead = sentinel;
                 rend = false;
