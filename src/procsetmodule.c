@@ -1,5 +1,6 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <stdbool.h>
 #include "structmember.h"
 
 // define the type of the boundaries of the set
@@ -92,23 +93,111 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-ProcSet_show(ProcSetObject *self, PyObject *Py_UNUSED(ignored)) {
-    printf("ProcSet(");
+ProcSet_show(ProcSetObject *self, PyObject *Py_UNUSED(ignored))
+{
+    printf("ProcSet( ");
 
-        for (int index = 0; index < self->nb_boundary-2; index += 2) {
-            printf("%d-%d ", self->_boundaries[index], self->_boundaries[index+1]);
+        for (int index = 0; index < self->nb_boundary; index += 2) {
+            assert(self->_boundaries[index] != NULL);
+            printf("%d-%d ", self->_boundaries[index],
+            self->_boundaries[index+1]);
         }
-        // show the last element
-        if (self->nb_boundary > 0) 
-            printf("%d-%d", self->_boundaries[self->nb_boundary-2], self->_boundaries[self->nb_boundary-1]);
-
-        printf(")\n");
+        printf(")");
+        printf("- taille : %d\n", self->nb_boundary);
 
         Py_RETURN_NONE;
 }
 
+static PyTypeObject ProcSetType;
+
+static PyObject *
+ProcSet_union(ProcSetObject *self, PyObject *args)
+{
+
+    pset_boundary_t *new_boundaries;
+    ProcSetObject *other;
+
+    if (!PyArg_ParseTuple(args, "O!", &ProcSetType, &other)) {
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    // union case : alloc a memory having the N+M size of the two objects
+    //      with N and M the number of interval in the procset
+    int total_intervals = self->nb_boundary + other->nb_boundary;
+
+    new_boundaries = (pset_boundary_t *) malloc(total_intervals * sizeof(pset_boundary_t));
+    if (new_boundaries == NULL) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to allocate the memory to store the boundaries");
+        return NULL;
+    }
+
+    bool enbound = false;
+    pset_boundary_t sentinel = UINT32_MAX;
+
+    int lbound_index = 0, rbound_index = 0, index = 0;
+    pset_boundary_t lhead = self->_boundaries[lbound_index];
+    pset_boundary_t rhead = other->_boundaries[rbound_index];
+
+    bool lend = lbound_index%2 != 0;
+    bool rend = rbound_index%2 != 0;
+
+    pset_boundary_t head = (pset_boundary_t) fmin(lhead, rhead);
+
+    while (head < sentinel) {
+        int inleft = (head < lhead) == lend;
+        int inright = (head < rhead) == rend;
+        int keep = inleft | inright;
+
+        if (keep ^ enbound) {
+            enbound = !enbound;
+            assert(new_boundaries[index] != NULL);
+            new_boundaries[index] = head;
+            index++;
+        }
+
+        if (head == lhead) {
+            lbound_index++;
+
+            if (lbound_index < self->nb_boundary) {
+                lend = lbound_index%2 != 0;
+                lhead = lend ? self->_boundaries[lbound_index] 
+                             : self->_boundaries[lbound_index]+1;
+            } else { // sentinel
+                lhead = sentinel;
+                lend = false;
+            }
+        }
+        if (head == rhead) {
+            rbound_index++;
+            if (rbound_index < other->nb_boundary) {
+                rend = rbound_index%2 != 0;
+                rhead = rend ? other->_boundaries[rbound_index] 
+                             : other->_boundaries[rbound_index]+1;
+            } else { // sentinel
+                rhead = sentinel;
+                rend = false;
+            }
+        }
+
+        head = (pset_boundary_t) fmin(lhead, rhead);
+    }
+
+    ProcSetObject *new_procset = PyObject_New(ProcSetObject, &ProcSetType);
+    if (new_procset == NULL) {
+        free(new_boundaries);
+        return NULL;
+    }
+
+    new_procset->_boundaries = new_boundaries;
+    new_procset->nb_boundary = index;
+
+    return (PyObject *)new_procset;
+}
+
 static PyMethodDef ProcSet_methods[] = {
     {"show", (PyCFunction) ProcSet_show, METH_NOARGS, "Show the boundaries of the ProcSet"},
+    {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Apply the assemblist union operation and return a new ProcSet"},
     {NULL}
 };
 
