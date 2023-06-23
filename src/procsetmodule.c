@@ -23,7 +23,7 @@ create_pset_from_string(ProcSetObject *self, char *pset_string)
      - the input string is like "n-n n-n n-n", with n a digit
     the worse case is when n is one digit, when we need
         - strlen(string)//2 + 1 to have enought place to store all the bounds */
-    int needed_space = lenght/2 + 1;
+    int needed_space = (lenght+1)/2;
 
     tmp = (pset_boundary_t *) malloc(needed_space * sizeof(pset_boundary_t));
     if (tmp == NULL) {
@@ -38,6 +38,7 @@ create_pset_from_string(ProcSetObject *self, char *pset_string)
     bound = strtok(bound, " -");
     index = 0;
     while (bound != NULL) {
+
         // check if bound is a digit
         // printf("bound = %s \n", bound);
         // if (!isdigit(bound)) {
@@ -45,6 +46,7 @@ create_pset_from_string(ProcSetObject *self, char *pset_string)
         //     PyErr_SetString(PyExc_ValueError, "Input boundaries contains non-digits values");
         //     return -1;
         // }
+
         tmp[index] = index%2 == 0 ? atoi(bound) : atoi(bound) + 1;
         ++index;
         bound = strtok(NULL, " -");
@@ -80,11 +82,11 @@ create_pset_from_string(ProcSetObject *self, char *pset_string)
     //     bound = strtok_r(NULL, " ", &st_result);
     // }
 
-    // if (index%2 != 0) {
-    //     free(tmp);
-    //     PyErr_SetString(PyExc_ValueError, "The number of boundaries in input must be even");
-    //     return -1;
-    // }
+    if (index%2 != 0) {
+        free(tmp);
+        PyErr_SetString(PyExc_ValueError, "The number of boundaries in input must be even");
+        return -1;
+    }
 
     free(self->_boundaries);
     self->_boundaries = tmp;
@@ -132,24 +134,49 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
     }
 
     return 0;
-
 }
 
 static PyObject *
-ProcSet_show(ProcSetObject *self, PyObject *Py_UNUSED(ignored))
-{
-    printf("ProcSet(");
-    if (self->nb_boundary >= 2) {
-        printf("%d-%d", self->_boundaries[0], self->_boundaries[1]-1);
-        for (size_t index = 2; index < self->nb_boundary; index += 2) {
-            printf(" %d-%d", self->_boundaries[index], self->_boundaries[index+1]-1);
-        }
-    }
-    printf(")");
-    //printf("- taille : %ld\n", self->nb_boundary);
-    printf("\n");
+ProcSet_repr(ProcSetObject *self)
+{ 
+    PyObject *repr_obj = NULL;
 
-    Py_RETURN_NONE;
+    // PART I - Calculate the size of the string
+    // Calculate the maximum size of a bound
+    uint32_t max_bound = self->_boundaries[self->nb_boundary - 1];
+    size_t max_bound_size = snprintf(NULL, 0, "%u", max_bound); // As the bounds are supposed to be stored in ascendant way
+
+    // Calculate the size of the string
+    size_t repr_string_size = 9;  // "ProcSet(" + ")"
+    repr_string_size += (self->nb_boundary - 1);  // Account for the separators "-" qnd " "
+    repr_string_size += (self->nb_boundary * max_bound_size);  // Account for the bounds
+
+    // PART II - Create a string representation of the boundaries
+    char *repr_string = (char *)malloc(repr_string_size + 1);
+
+    if (repr_string != NULL) {
+        repr_string[0] = '\0';  // Initialize the string with an empty string
+        strcat(repr_string, "ProcSet(");
+
+        // Iterate over the boundaries and append them to the string
+        if (self->nb_boundary > 0) {
+            char first_interval[max_bound_size*2+2]; // +2 for "-" and "\0" character
+            sprintf(first_interval, "%d-%d", self->_boundaries[0], self->_boundaries[1]);
+            strcat(repr_string, first_interval);
+            
+            for (size_t index = 2; index < self->nb_boundary; index+=2) {
+                char interval[max_bound_size*2+3]; // +2 for "-", " " and "\0" character
+                sprintf(interval, " %d-%d", self->_boundaries[index], self->_boundaries[index+1]);
+                strcat(repr_string, interval);
+            }
+        }
+
+        strcat(repr_string, ")");
+        repr_obj = PyUnicode_FromString(repr_string);
+        free(repr_string);
+    }
+
+    return repr_obj;
 }
 
 static PyTypeObject ProcSetType;
@@ -240,7 +267,6 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
 }
 
 static PyMethodDef ProcSet_methods[] = {
-    {"show", (PyCFunction) ProcSet_show, METH_NOARGS, "Show the boundaries of the ProcSet"},
     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Apply the assemblist union operation and return a new ProcSet"},
     {NULL}
 };
@@ -251,6 +277,7 @@ static PyTypeObject ProcSetType = {
     .tp_doc = "C implementation to represent Procset object ㋡",
     .tp_basicsize = sizeof(ProcSetObject),
     .tp_itemsize = 0,
+    .tp_repr = (reprfunc) ProcSet_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_new = ProcSet_new,
     .tp_init = (initproc) ProcSet_init,
