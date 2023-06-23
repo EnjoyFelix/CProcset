@@ -1,8 +1,13 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
-// documenter utilisation stdbool.h
+// TODO documenter utilisation stdbool.h
+#include <Python.h>
 #include <stdbool.h>
 #include "structmember.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+static PyTypeObject ProcSetType;
 
 // define the type of the boundaries of the set
 typedef uint32_t pset_boundary_t;
@@ -11,7 +16,7 @@ typedef uint32_t pset_boundary_t;
 typedef struct {
     PyObject_HEAD
     pset_boundary_t *_boundaries;
-    size_t nb_boundary; // TODO : transform to size_t (or ssize_t si besoin de -1)
+    size_t nb_boundary;
 } ProcSetObject;
 
 int
@@ -120,7 +125,7 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 {
     static char *kwlist[] = {"pset", NULL};
     char *pset_string = NULL;
-    // TODO : gerer le cas avec aucun argument
+    // TODO : gérer le cas avec aucun argument
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist,
                                     &pset_string))
         return -1;
@@ -128,8 +133,6 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
     if (pset_string) {
 
         create_pset_from_string(self, pset_string);
-
-
         // free(pset_string); // XXX : not sure if it's usefull tbh
     }
 
@@ -153,7 +156,6 @@ ProcSet_repr(ProcSetObject *self)
 
     // PART II - Create a string representation of the boundaries
     char *repr_string = (char *)malloc(repr_string_size + 1);
-
     if (repr_string != NULL) {
         repr_string[0] = '\0';  // Initialize the string with an empty string
         strcat(repr_string, "ProcSet(");
@@ -165,7 +167,7 @@ ProcSet_repr(ProcSetObject *self)
             strcat(repr_string, first_interval);
             
             for (size_t index = 2; index < self->nb_boundary; index+=2) {
-                char interval[max_bound_size*2+3]; // +2 for "-", " " and "\0" character
+                char interval[max_bound_size*2+3]; // +3 for "-", " " and "\0" character
                 sprintf(interval, " %d-%d", self->_boundaries[index], self->_boundaries[index+1]);
                 strcat(repr_string, interval);
             }
@@ -178,9 +180,6 @@ ProcSet_repr(ProcSetObject *self)
 
     return repr_obj;
 }
-
-static PyTypeObject ProcSetType;
-// TODO: ecrire en haut
 
 static PyObject *
 ProcSet_union(ProcSetObject *self, PyObject *args)
@@ -207,7 +206,6 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
     bool enbound = false;
     pset_boundary_t sentinel = UINT32_MAX;
 
-    // TODO: changer en size_t
     size_t lbound_index = 0, rbound_index = 0, index = 0;
     pset_boundary_t lhead = self->_boundaries[lbound_index];
     pset_boundary_t rhead = other->_boundaries[rbound_index];
@@ -250,13 +248,15 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
             }
         }
 
-        head = (pset_boundary_t) fmin(lhead, rhead); // TODO : operation ternaire
+        // head = min(lhead, rhead)
+        head = lhead < rhead ? lhead : rhead;
     }
 
     ProcSetObject *new_procset = PyObject_New(ProcSetObject, &ProcSetType);
     if (new_procset == NULL) {
         free(new_boundaries);
-        // TODO: exception de memoire
+        // XXX: Peut-être une autre exception ? (mémiore par exemple)
+        PyErr_SetString(PyExc_ValueError, "Failed to create the new ProcSet");
         return NULL;
     }
 
