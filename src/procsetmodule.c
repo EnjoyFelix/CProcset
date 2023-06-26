@@ -1,8 +1,6 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
-// TODO documenter utilisation stdbool.h
-#include <Python.h>
-#include <stdbool.h>
+#include <stdbool.h> // xxx C99
 #include "structmember.h"
 #include <stdint.h>
 #include <stdlib.h>
@@ -11,6 +9,27 @@ static PyTypeObject ProcSetType;
 
 // define the type of the boundaries of the set
 typedef uint32_t pset_boundary_t;
+pset_boundary_t maxBoundValue = UINT32_MAX;
+// define a function type for the operator
+typedef bool (*OperatorFunction)(bool, bool);
+
+// functions that are making the bitwise operation
+bool bitwiseOr(bool inLeft, bool inRight) {
+    return inLeft | inRight;
+}
+
+bool bitwiseAnd(bool inLeft, bool inRight) {
+    return inLeft & inRight;
+}
+
+bool bitwiseSubtraction(bool inLeft, bool inRight) {
+    return inLeft & (!inRight);
+}
+
+bool bitwiseXor(bool inLeft, bool inRight) {
+    return inLeft ^ inRight;
+}
+
 
 // define of the procset type
 typedef struct {
@@ -181,11 +200,82 @@ ProcSet_repr(ProcSetObject *self)
     return repr_obj;
 }
 
+PyObject *
+_merge(ProcSetObject *lpset, ProcSetObject *rpset, OperatorFunction operator, size_t neededSize) {
+    // memory allocating for the neededSize
+    pset_boundary_t *newBoundaries = (pset_boundary_t *) malloc(neededSize * sizeof(pset_boundary_t));
+    if (newBoundaries == NULL) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to allocate the memory to store the new boundaries");
+        return NULL;
+    }
+
+    bool enbound = false;
+    pset_boundary_t sentinel = maxBoundValue;
+
+    size_t lbound_index = 0, rbound_index = 0, index = 0;
+    pset_boundary_t lhead = lpset->_boundaries[lbound_index];
+    pset_boundary_t rhead = rpset->_boundaries[rbound_index];
+
+    bool lend = lbound_index%2 != 0;
+    bool rend = rbound_index%2 != 0;
+
+    pset_boundary_t head = lhead < rhead ? lhead : rhead;;
+
+    while (head < sentinel) {
+        bool inleft = (head < lhead) == lend;
+        bool inright = (head < rhead) == rend;
+        bool keep = operator(inleft, inright);
+
+        if (keep ^ enbound) {
+            enbound = !enbound;
+            newBoundaries[index] = head;
+            index++;
+        }
+
+        if (head == lhead) {
+            lbound_index++;
+
+            if (lbound_index < lpset->nb_boundary) {
+                lend = lbound_index%2 != 0;
+                lhead = lpset->_boundaries[lbound_index];
+            } else { // sentinel
+                lhead = sentinel;
+                lend = false;
+            }
+        }
+        if (head == rhead) {
+            rbound_index++;
+            if (rbound_index < rpset->nb_boundary) {
+                rend = rbound_index%2 != 0;
+                rhead = rpset->_boundaries[rbound_index];
+            } else { // sentinel
+                rhead = sentinel;
+                rend = false;
+            }
+        }
+
+        head = lhead < rhead ? lhead : rhead;
+    }
+
+    ProcSetObject *new_procset = PyObject_New(ProcSetObject, &ProcSetType);
+    if (new_procset == NULL) {
+        free(newBoundaries);
+        // XXX: Peut-être une autre exception ? (mémoire par exemple)
+        PyErr_SetString(PyExc_ValueError, "Failed to create the new ProcSet");
+        return NULL;
+    }
+
+    new_procset->_boundaries = newBoundaries;
+    new_procset->nb_boundary = index;
+
+    return (PyObject *)new_procset;
+
+}
+
 static PyObject *
 ProcSet_union(ProcSetObject *self, PyObject *args)
 {
 
-    pset_boundary_t *new_boundaries;
     ProcSetObject *other;
 
     if (!PyArg_ParseTuple(args, "O!", &ProcSetType, &other)) {
@@ -195,86 +285,86 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
 
     // union case : alloc a memory having the N+M size of the two objects
     //      with N and M the number of interval in the procset
-    size_t max_needed_bounds = self->nb_boundary + other->nb_boundary;
+    size_t neededSize = self->nb_boundary + other->nb_boundary;
 
-    new_boundaries = (pset_boundary_t *) malloc(max_needed_bounds * sizeof(pset_boundary_t));
-    if (new_boundaries == NULL) {
-        PyErr_SetString(PyExc_MemoryError, "Failed to allocate the memory to store the boundaries");
+    // merge calling
+    return _merge(self, other, bitwiseOr, neededSize);
+
+}
+
+static PyObject *
+ProcSet_intersection(ProcSetObject *self, PyObject *args)
+{
+
+    ProcSetObject *other;
+
+    if (!PyArg_ParseTuple(args, "O!", &ProcSetType, &other)) {
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
         return NULL;
     }
 
-    bool enbound = false;
-    pset_boundary_t sentinel = UINT32_MAX;
+    // union case : alloc a memory having the N+M size of the two objects
+    //      with N and M the number of interval in the procset
+    size_t neededSize = self->nb_boundary > other->nb_boundary ?
+                        self->nb_boundary : other->nb_boundary;
 
-    size_t lbound_index = 0, rbound_index = 0, index = 0;
-    pset_boundary_t lhead = self->_boundaries[lbound_index];
-    pset_boundary_t rhead = other->_boundaries[rbound_index];
+    // merge calling
+    return _merge(self, other, bitwiseAnd, neededSize);
 
-    bool lend = lbound_index%2 != 0;
-    bool rend = rbound_index%2 != 0;
+}
 
-    pset_boundary_t head = (pset_boundary_t) fmin(lhead, rhead);
+static PyObject *
+ProcSet_difference(ProcSetObject *self, PyObject *args)
+{
 
-    while (head < sentinel) {
-        bool inleft = (head < lhead) == lend;
-        bool inright = (head < rhead) == rend;
-        bool keep = inleft | inright;
+    ProcSetObject *other;
 
-        if (keep ^ enbound) {
-            enbound = !enbound;
-            new_boundaries[index] = head;
-            index++;
-        }
-
-        if (head == lhead) {
-            lbound_index++;
-
-            if (lbound_index < self->nb_boundary) {
-                lend = lbound_index%2 != 0;
-                lhead = self->_boundaries[lbound_index];
-            } else { // sentinel
-                lhead = sentinel;
-                lend = false;
-            }
-        }
-        if (head == rhead) {
-            rbound_index++;
-            if (rbound_index < other->nb_boundary) {
-                rend = rbound_index%2 != 0;
-                rhead = other->_boundaries[rbound_index];
-            } else { // sentinel
-                rhead = sentinel;
-                rend = false;
-            }
-        }
-
-        // head = min(lhead, rhead)
-        head = lhead < rhead ? lhead : rhead;
-    }
-
-    ProcSetObject *new_procset = PyObject_New(ProcSetObject, &ProcSetType);
-    if (new_procset == NULL) {
-        free(new_boundaries);
-        // XXX: Peut-être une autre exception ? (mémiore par exemple)
-        PyErr_SetString(PyExc_ValueError, "Failed to create the new ProcSet");
+    if (!PyArg_ParseTuple(args, "O!", &ProcSetType, &other)) {
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
         return NULL;
     }
 
-    new_procset->_boundaries = new_boundaries;
-    new_procset->nb_boundary = index;
+    // union case : alloc a memory having the N+M size of the two objects
+    //      with N and M the number of interval in the procset
+    size_t neededSize = self->nb_boundary;
 
-    return (PyObject *)new_procset;
+    // merge calling
+    return _merge(self, other, bitwiseSubtraction, neededSize);
+
+}
+
+static PyObject *
+ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
+{
+
+    ProcSetObject *other;
+
+    if (!PyArg_ParseTuple(args, "O!", &ProcSetType, &other)) {
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    // union case : alloc a memory having the N+M size of the two objects
+    //      with N and M the number of interval in the procset
+    size_t neededSize = self->nb_boundary + other->nb_boundary;
+
+    // merge calling
+    return _merge(self, other, bitwiseXor, neededSize);
+
 }
 
 static PyMethodDef ProcSet_methods[] = {
-    {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Apply the assemblist union operation and return a new ProcSet"},
+    {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
+    {"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
+    {"difference", (PyCFunction) ProcSet_difference, METH_VARARGS, "Function that perform the assemblist difference operation and return a new ProcSet"},
+    {"symmetric_difference", (PyCFunction) ProcSet_symmetricDifference, METH_VARARGS, "Function that perform the assemblist symmetric difference operation and return a new ProcSet"},
     {NULL}
 };
 
 static PyTypeObject ProcSetType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "ProcSet.procset",
-    .tp_doc = "C implementation to represent Procset object ㋡",
+    .tp_doc = "C implementation to represent Procset object",
     .tp_basicsize = sizeof(ProcSetObject),
     .tp_itemsize = 0,
     .tp_repr = (reprfunc) ProcSet_repr,
