@@ -71,7 +71,7 @@ create_pset_from_string(ProcSetObject *self, char *pset_string)
         //     return -1;
         // }
 
-        tmp[index] = index%2 == 0 ? atoi(bound) : atoi(bound) + 1;
+        tmp[index] = index%2 == 0 ? atoi(bound) : atoi(bound) + 1; // +1 to store it with half-open interval
         ++index;
         bound = strtok(NULL, " -");
     }
@@ -165,8 +165,8 @@ ProcSet_repr(ProcSetObject *self)
 
     // PART I - Calculate the size of the string
     // Calculate the maximum size of a bound
-    uint32_t max_bound = self->_boundaries[self->nb_boundary - 1];
-    size_t max_bound_size = snprintf(NULL, 0, "%u", max_bound); // As the bounds are supposed to be stored in ascendant way
+    uint32_t max_bound = self->_boundaries[self->nb_boundary-1];
+    size_t max_bound_size = snprintf(NULL, 0, "%u", max_bound); // As the bounds are supposed to be stored in ascendant way, the greatest bound is the last one
 
     // Calculate the size of the string
     size_t repr_string_size = 9;  // "ProcSet(" + ")"
@@ -174,7 +174,7 @@ ProcSet_repr(ProcSetObject *self)
     repr_string_size += (self->nb_boundary * max_bound_size);  // Account for the bounds
 
     // PART II - Create a string representation of the boundaries
-    char *repr_string = (char *)malloc(repr_string_size + 1);
+    char *repr_string = (char *)malloc(repr_string_size + 1); // +1 for the "\0" character
     if (repr_string != NULL) {
         repr_string[0] = '\0';  // Initialize the string with an empty string
         strcat(repr_string, "ProcSet(");
@@ -182,12 +182,12 @@ ProcSet_repr(ProcSetObject *self)
         // Iterate over the boundaries and append them to the string
         if (self->nb_boundary > 0) {
             char first_interval[max_bound_size*2+2]; // +2 for "-" and "\0" character
-            sprintf(first_interval, "%d-%d", self->_boundaries[0], self->_boundaries[1]);
+            sprintf(first_interval, "%d-%d", self->_boundaries[0], self->_boundaries[1]-1); // -1 to represent it with closed interval
             strcat(repr_string, first_interval);
             
             for (size_t index = 2; index < self->nb_boundary; index+=2) {
                 char interval[max_bound_size*2+3]; // +3 for "-", " " and "\0" character
-                sprintf(interval, " %d-%d", self->_boundaries[index], self->_boundaries[index+1]);
+                sprintf(interval, " %d-%d", self->_boundaries[index], self->_boundaries[index+1]-1); // -1 to represent it with closed interval
                 strcat(repr_string, interval);
             }
         }
@@ -253,7 +253,6 @@ _merge(ProcSetObject *lpset, ProcSetObject *rpset, OperatorFunction operator, si
                 rend = false;
             }
         }
-
         head = lhead < rhead ? lhead : rhead;
     }
 

@@ -3,4 +3,4 @@
 cd /home/lgardon/projects/pset-cpython/.builded-module
 source ../.venv/bin/activate
 
-python ../setup.py install --user
+python ../setup.py install
