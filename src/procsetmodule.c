@@ -142,17 +142,16 @@ ProcSet_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 {
-    static char *kwlist[] = {"pset", NULL};
+static char *kwlist[] = {"pset", NULL};
     char *pset_string = NULL;
-    // TODO : gérer le cas avec aucun argument
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "s", kwlist,
-                                    &pset_string))
-        return -1;
-        
-    if (pset_string) {
 
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|s", kwlist, &pset_string)) {
+        PyErr_SetString(PyExc_TypeError, "Failed to parse arguments");
+        return -1;
+    }
+    
+    if (pset_string) {
         create_pset_from_string(self, pset_string);
-        // free(pset_string); // XXX : not sure if it's usefull tbh
     }
 
     return 0;
@@ -161,6 +160,11 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 static PyObject *
 ProcSet_repr(ProcSetObject *self)
 { 
+    // Empty ProcSet
+    if (self->nb_boundary == 0) 
+        return PyUnicode_FromString("ProcSet()");
+
+
     PyObject *repr_obj = NULL;
 
     // PART I - Calculate the size of the string

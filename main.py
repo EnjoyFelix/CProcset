@@ -17,3 +17,7 @@ print("difference : \t\t\t" + repr(procDifference))
 
 procDiffSymmetric = proc1.symmetric_difference(proc2)
 print("symmetric difference : \t\t" + repr(procDiffSymmetric))
+
+
+procEmpty = procset.ProcSet()
+print("emptyProcset : " + repr(procEmpty))
