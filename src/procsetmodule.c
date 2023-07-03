@@ -2,9 +2,9 @@
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
-#include <stdbool.h> // xxx C99
-#include "structmember.h"
-#include <stdint.h>
+#include <stdbool.h> // C99
+#include "structmember.h" // deprecated, may use descrobject.h
+#include <stdint.h> // C99
 #include <stdlib.h>
 #include <string.h>
 static PyTypeObject ProcSetType;
@@ -239,6 +239,9 @@ ProcSet_str(ProcSetObject *self)
     // Transform to PyObject Unicode
     str_obj = PyUnicode_FromString(bounds_string);
     
+    if (bounds_string == "\0") {
+        bounds_string = NULL;
+    }
     free(bounds_string);
 
     return str_obj;
