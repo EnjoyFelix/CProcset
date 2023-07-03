@@ -76,8 +76,8 @@ proc_difference = proc1.difference(proc2)
 proc_symmetric_diff = proc1.symmetric_difference(proc2)
 
 # Display the string representation of ProcSet objects
-print(f"proc1 : {proc1}")
-print(f"proc2 : {proc2}")
+print(f"proc1 with repr: {repr(proc1)}")
+print(f"proc2 with str : {proc2}")
 
 
 # Display the results of the operations
@@ -89,4 +89,14 @@ print(f"symmetric-difference : {proc_symmetric_diff}")
 # Create and display an empty ProcSet
 proc_empty = procset.ProcSet()
 print(f"empty : {proc_empty}")
+```
+### Output
+```bash
+proc1 with repr: ProcSet(11-45 88-100)
+proc2 with str : 33-54 63-74 79-94
+union : 11-54 63-74 79-100
+intersection : 33-45 88-94
+difference : 11-32 95-100
+symmetric-difference : 11-32 46-54 63-74 79-87 95-100
+empty : 
 ```
