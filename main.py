@@ -1,23 +1,24 @@
 import procset
 
 proc1 = procset.ProcSet("11-45 88-100")
-print("proc1 : \t\t\t" + repr(proc1))
+print("repr : " + repr(proc1))
+print("str  : " + str(proc1))
+print(f"proc1 : {proc1}")
 
 proc2 = procset.ProcSet("33-54 63-74 79-94")
-print("proc2 : \t\t\t" + repr(proc2))
+print(f"proc2 : {proc2}")
 
 procUnion = proc1.union(proc2)
-print("union : \t\t\t" + repr(procUnion))
+print(f"union : {procUnion}")
 
 procIntersection = proc1.intersection(proc2)
-print("intersection : \t\t\t" + repr(procIntersection))
+print(f"intersection : {procIntersection}")
 
 procDifference = proc1.difference(proc2)
-print("difference : \t\t\t" + repr(procDifference))
+print(f"difference : {procDifference}")
 
 procDiffSymmetric = proc1.symmetric_difference(proc2)
-print("symmetric difference : \t\t" + repr(procDiffSymmetric))
-
+print(f"symmetric-difference : {procDiffSymmetric}")
 
 procEmpty = procset.ProcSet()
-print("emptyProcset : " + repr(procEmpty))
+print(f"empty : {procEmpty}")

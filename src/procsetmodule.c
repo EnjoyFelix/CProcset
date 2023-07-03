@@ -1,3 +1,5 @@
+// TODO Global : not use the basics allocator functions, but the PyMem equivalent 
+
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <stdbool.h> // xxx C99
@@ -11,6 +13,7 @@ static PyTypeObject ProcSetType;
 typedef uint32_t pset_boundary_t;
 pset_boundary_t maxBoundValue = UINT32_MAX;
 // define a function type for the operator
+// todo merge predicate
 typedef bool (*OperatorFunction)(bool, bool);
 
 // functions that are making the bitwise operation
@@ -157,51 +160,88 @@ static char *kwlist[] = {"pset", NULL};
     return 0;
 }
 
+char *
+bounds_to_string(ProcSetObject *procset)
+{
+    // Empty ProcSet
+    if (procset->nb_boundary == 0) {
+        return "\0";
+    }
+
+    // PART I - Calculate the needed size
+    // Calculate the maximum size of a bound
+    uint32_t max_bound = procset->_boundaries[procset->nb_boundary-1];
+    size_t max_bound_size = snprintf(NULL, 0, "%u", max_bound); // As the bounds are supposed to be stored in ascendant way, the greatest bound is the last one
+    // Calculate the size of the string
+    size_t bounds_string_size = procset->nb_boundary * (max_bound_size + 1); // Account for the bounds_size, the separators "-" and " ", and "\0"
+
+    // Create a string representation of the boundaries
+    char *p_bounds_string = (char *) malloc(bounds_string_size);
+    if (p_bounds_string == NULL) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to alocate memory");
+        return NULL;
+    }
+        
+    p_bounds_string[0] = '\0';  // Initialize the string with an empty string
+    // Iterate over the boundaries and append them to the string
+    if (procset->nb_boundary > 0) {
+        char first_interval[max_bound_size*2+2]; // +2 for "-" and "\0" character
+        sprintf(first_interval, "%d-%d", procset->_boundaries[0], procset->_boundaries[1]-1); // -1 to represent it with closed interval
+        strcat(p_bounds_string, first_interval);
+        
+        for (size_t index = 2; index < procset->nb_boundary; index+=2) {
+            char interval[max_bound_size*2+3]; // +3 for "-", " " and "\0" character
+            sprintf(interval, " %d-%d", procset->_boundaries[index], procset->_boundaries[index+1]-1); // -1 to represent it with closed interval
+            strcat(p_bounds_string, interval);
+        }
+    }
+    return p_bounds_string;
+}
+
 static PyObject *
 ProcSet_repr(ProcSetObject *self)
 { 
-    // Empty ProcSet
-    if (self->nb_boundary == 0) 
-        return PyUnicode_FromString("ProcSet()");
-
-
     PyObject *repr_obj = NULL;
+    
+    char* bounds_string = bounds_to_string(self);
 
-    // PART I - Calculate the size of the string
-    // Calculate the maximum size of a bound
-    uint32_t max_bound = self->_boundaries[self->nb_boundary-1];
-    size_t max_bound_size = snprintf(NULL, 0, "%u", max_bound); // As the bounds are supposed to be stored in ascendant way, the greatest bound is the last one
-
-    // Calculate the size of the string
-    size_t repr_string_size = 9;  // "ProcSet(" + ")"
-    repr_string_size += (self->nb_boundary - 1);  // Account for the separators "-" qnd " "
-    repr_string_size += (self->nb_boundary * max_bound_size);  // Account for the bounds
-
-    // PART II - Create a string representation of the boundaries
-    char *repr_string = (char *)malloc(repr_string_size + 1); // +1 for the "\0" character
-    if (repr_string != NULL) {
-        repr_string[0] = '\0';  // Initialize the string with an empty string
-        strcat(repr_string, "ProcSet(");
-
-        // Iterate over the boundaries and append them to the string
-        if (self->nb_boundary > 0) {
-            char first_interval[max_bound_size*2+2]; // +2 for "-" and "\0" character
-            sprintf(first_interval, "%d-%d", self->_boundaries[0], self->_boundaries[1]-1); // -1 to represent it with closed interval
-            strcat(repr_string, first_interval);
-            
-            for (size_t index = 2; index < self->nb_boundary; index+=2) {
-                char interval[max_bound_size*2+3]; // +3 for "-", " " and "\0" character
-                sprintf(interval, " %d-%d", self->_boundaries[index], self->_boundaries[index+1]-1); // -1 to represent it with closed interval
-                strcat(repr_string, interval);
-            }
-        }
-
-        strcat(repr_string, ")");
-        repr_obj = PyUnicode_FromString(repr_string);
-        free(repr_string);
+    // Allocate the needed memory
+    size_t repr_string_size = strlen(bounds_string) + 10; // +10 to represent "ProcSet(", ")" and "\0"
+    char *p_repr_string = (char *) malloc(repr_string_size);
+    if (p_repr_string == NULL) {
+        free(bounds_string);
+        PyErr_SetString(PyExc_MemoryError, "Failed to alocate memory");
+        return NULL;
     }
 
+    // Add "ProcSet(" and ")" to the bounds_string
+    p_repr_string[0] = '\0';  // Initialize the string with an empty string
+    strcat(p_repr_string, "ProcSet(");
+    strcat(p_repr_string, bounds_string);
+    strcat(p_repr_string, ")");
+
+    // Transform to PyObject Unicode
+    repr_obj = PyUnicode_FromString(p_repr_string);
+
+    free(bounds_string);
+    free(p_repr_string);
+
     return repr_obj;
+}
+
+static PyObject *
+ProcSet_str(ProcSetObject *self)
+{ 
+    PyObject *str_obj = NULL;
+    
+    char* bounds_string = bounds_to_string(self);
+
+    // Transform to PyObject Unicode
+    str_obj = PyUnicode_FromString(bounds_string);
+    
+    free(bounds_string);
+
+    return str_obj;
 }
 
 PyObject *
@@ -371,6 +411,7 @@ static PyTypeObject ProcSetType = {
     .tp_basicsize = sizeof(ProcSetObject),
     .tp_itemsize = 0,
     .tp_repr = (reprfunc) ProcSet_repr,
+    .tp_str = (reprfunc) ProcSet_str,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_new = ProcSet_new,
     .tp_init = (initproc) ProcSet_init,
