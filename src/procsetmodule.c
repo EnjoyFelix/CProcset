@@ -411,12 +411,40 @@ ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
 
 }
 
+static PyObject* ProcSet_get_min(ProcSetObject* self, void* closure) {
+    if (self->nb_boundary == 0) {
+        // Empty ProcSet, raise a ValueError
+        PyErr_SetString(PyExc_ValueError, "Empty ProcSet");
+        return NULL;
+    } else {
+        // Return the maximum value in the ProcSet
+        return PyLong_FromUnsignedLong(self->_boundaries[0]);
+    }
+}
+
+static PyObject* ProcSet_get_max(ProcSetObject* self, void* closure) {
+    if (self->nb_boundary == 0) {
+        // Empty ProcSet, raise a ValueError
+        PyErr_SetString(PyExc_ValueError, "Empty ProcSet");
+        return NULL;
+    } else {
+        // Return the maximum value in the ProcSet
+        return PyLong_FromUnsignedLong(self->_boundaries[self->nb_boundary - 1]-1);
+    }
+}
+
 static PyMethodDef ProcSet_methods[] = {
     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
     {"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
     {"difference", (PyCFunction) ProcSet_difference, METH_VARARGS, "Function that perform the assemblist difference operation and return a new ProcSet"},
     {"symmetric_difference", (PyCFunction) ProcSet_symmetricDifference, METH_VARARGS, "Function that perform the assemblist symmetric difference operation and return a new ProcSet"},
     {NULL}
+};
+
+static PyGetSetDef ProcSet_getset[] = {
+    {"min", (getter)ProcSet_get_min, NULL, "The first processor in the ProcSet (in increasing order).", NULL},
+    {"max", (getter)ProcSet_get_max, NULL, "The last processor in the ProcSet (in increasing order).", NULL},
+    {NULL}  // Sentinel
 };
 
 static PyTypeObject ProcSetType = {
@@ -432,6 +460,7 @@ static PyTypeObject ProcSetType = {
     .tp_init = (initproc) ProcSet_init,
     .tp_dealloc = (destructor) ProcSet_dealloc,
     .tp_methods = ProcSet_methods,
+    .tp_getset = ProcSet_getset,
 };
 
 static PyModuleDef procsetmodule = {
