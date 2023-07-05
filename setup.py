@@ -3,5 +3,11 @@ from distutils.core import setup, Extension
 setup(
     name="procset",
     version="1.0",
-    ext_modules=[Extension("procset", ["src/procsetmodule.c"])],
+    ext_modules=[
+        Extension(
+            name="procset",
+            sources=["src/procsetmodule.c"],
+            extra_compile_args=["-Wall", "-Wextra", "-pedantic", "-Werror", "-std=c99"],
+        )
+    ],
 )

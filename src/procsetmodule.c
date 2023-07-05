@@ -130,7 +130,7 @@ ProcSet_dealloc(ProcSetObject *self)
 }
 
 static PyObject *
-ProcSet_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds))
 {
     ProcSetObject *self;
     self = (ProcSetObject *) type->tp_alloc(type, 0);
@@ -439,7 +439,7 @@ ProcSet_aggregate(ProcSetObject *self, PyObject *Py_UNUSED(ignored))
 
 
 static PyObject *
-ProcSet_get_min(ProcSetObject* self, void* closure)
+ProcSet_get_min(ProcSetObject* self, void *Py_UNUSED(closure))
 {
     if (self->nb_boundary == 0) {
         // Empty ProcSet, raise a ValueError
@@ -452,7 +452,7 @@ ProcSet_get_min(ProcSetObject* self, void* closure)
 }
 
 static PyObject *
-ProcSet_get_max(ProcSetObject* self, void* closure)
+ProcSet_get_max(ProcSetObject* self, void *Py_UNUSED(closure))
 {
     if (self->nb_boundary == 0) {
         // Empty ProcSet, raise a ValueError
