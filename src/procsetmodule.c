@@ -411,7 +411,36 @@ ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
 
 }
 
-static PyObject* ProcSet_get_min(ProcSetObject* self, void* closure) {
+static PyObject *
+ProcSet_aggregate(ProcSetObject *self, PyObject *Py_UNUSED(ignored))
+{
+    ProcSetObject *new_procset = PyObject_New(ProcSetObject, &ProcSetType);
+    if (new_procset == NULL) {
+        // XXX: Peut-être une autre exception ? (mémoire par exemple)
+        PyErr_SetString(PyExc_ValueError, "Failed to create the new ProcSet");
+        return NULL;
+    }
+
+    new_procset->_boundaries = (pset_boundary_t *) malloc(2 * sizeof(pset_boundary_t));
+    if (new_procset->_boundaries == NULL) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to allocate the needed memory");
+        return NULL;
+    }
+    // min value
+    new_procset->_boundaries[0] = self->_boundaries[0];
+    // max value
+    new_procset->_boundaries[1] = self->_boundaries[self->nb_boundary - 1];
+    new_procset->nb_boundary = 2;
+
+    return (PyObject *)new_procset;
+
+}
+
+
+
+static PyObject *
+ProcSet_get_min(ProcSetObject* self, void* closure)
+{
     if (self->nb_boundary == 0) {
         // Empty ProcSet, raise a ValueError
         PyErr_SetString(PyExc_ValueError, "Empty ProcSet");
@@ -422,7 +451,9 @@ static PyObject* ProcSet_get_min(ProcSetObject* self, void* closure) {
     }
 }
 
-static PyObject* ProcSet_get_max(ProcSetObject* self, void* closure) {
+static PyObject *
+ProcSet_get_max(ProcSetObject* self, void* closure)
+{
     if (self->nb_boundary == 0) {
         // Empty ProcSet, raise a ValueError
         PyErr_SetString(PyExc_ValueError, "Empty ProcSet");
@@ -438,6 +469,14 @@ static PyMethodDef ProcSet_methods[] = {
     {"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
     {"difference", (PyCFunction) ProcSet_difference, METH_VARARGS, "Function that perform the assemblist difference operation and return a new ProcSet"},
     {"symmetric_difference", (PyCFunction) ProcSet_symmetricDifference, METH_VARARGS, "Function that perform the assemblist symmetric difference operation and return a new ProcSet"},
+    {"aggregate", (PyCFunction) ProcSet_aggregate, METH_NOARGS, 
+    "Return a new ProcSet that is the convex hull of the ProcSet.\n"
+    "\n"
+    "The convex hull of an empty ProcSet is the empty ProcSet.\n"
+    "\n"
+    "The convex hull of a non-empty ProcSet is the contiguous ProcSet made\n"
+    "of the smallest unique interval containing all intervals from the\n"
+    "non-empty ProcSet."}, 
     {NULL}
 };
 
