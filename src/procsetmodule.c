@@ -38,7 +38,7 @@ bool bitwiseXor(bool inLeft, bool inRight) {
 typedef struct {
     PyObject_HEAD
     pset_boundary_t *_boundaries;
-    size_t nb_boundary;
+    Py_ssize_t nb_boundary;
 } ProcSetObject;
 
 int
@@ -59,7 +59,7 @@ create_pset_from_string(ProcSetObject *self, char *pset_string)
     }
 
     char* bound;
-    size_t index;
+    Py_ssize_t index;
 
     bound = pset_string;
     bound = strtok(bound, " -");
@@ -173,16 +173,16 @@ bounds_to_string(ProcSetObject *procset)
     uint32_t max_bound = procset->_boundaries[procset->nb_boundary-1];
     // As the bounds are supposed to be stored in ascendant way,
     // the greatest bound is the last one
-    size_t max_bound_size = snprintf(NULL, 0, "%u", max_bound); 
+    Py_ssize_t max_bound_size = snprintf(NULL, 0, "%u", max_bound); 
     // Calculate the max size of the final string
     // Account for the bounds_size, the separators "-" and " ", and "\0"
-    //      size_t nb_space = procset->nb_boundary-1;
-    //      size_t nb_hyphen = procset->nb_boundary;
-    //      size_t needed_size_bounds = procset->nb_boundary*max_bound_size;
-    //      size_t size_null_char = 1;
-    //      size_t bounds_string_size = nb_space + nb_hyphen + needed_size_bounds + size_null_char;
+    //      Py_ssize_t nb_space = procset->nb_boundary-1;
+    //      Py_ssize_t nb_hyphen = procset->nb_boundary;
+    //      Py_ssize_t needed_size_bounds = procset->nb_boundary*max_bound_size;
+    //      Py_ssize_t size_null_char = 1;
+    //      Py_ssize_t bounds_string_size = nb_space + nb_hyphen + needed_size_bounds + size_null_char;
     // In one line
-    size_t bounds_string_size = procset->nb_boundary * (max_bound_size + 2);
+    Py_ssize_t bounds_string_size = procset->nb_boundary * (max_bound_size + 2);
     // Create a string representation of the boundaries
     char *p_bounds_string = (char *) malloc(bounds_string_size);
     if (p_bounds_string == NULL) {
@@ -196,7 +196,7 @@ bounds_to_string(ProcSetObject *procset)
         int writed_char = sprintf(p_bounds_string, "%d-%d",
             procset->_boundaries[0],
             procset->_boundaries[1]-1); // -1 to represent it with closed interval
-        for (size_t index = 2; index < procset->nb_boundary; index+=2) {
+        for (Py_ssize_t index = 2; index < procset->nb_boundary; index+=2) {
             writed_char += sprintf(p_bounds_string+writed_char, " %d-%d",
                 procset->_boundaries[index],
                 procset->_boundaries[index+1]-1); // -1 to represent it with closed interval
@@ -216,7 +216,7 @@ ProcSet_repr(ProcSetObject *self)
     }
 
     // Allocate the needed memory
-    size_t repr_string_size = strlen(bounds_string) + 10; // +10 to represent "ProcSet(", ")" and "\0"
+    Py_ssize_t repr_string_size = strlen(bounds_string) + 10; // +10 to represent "ProcSet(", ")" and "\0"
     char *p_repr_string = (char *) malloc(repr_string_size);
     if (p_repr_string == NULL) {
         free(bounds_string);
@@ -260,7 +260,7 @@ ProcSet_str(ProcSetObject *self)
 }
 
 PyObject *
-_merge(ProcSetObject *lpset, ProcSetObject *rpset, MergePredicate operator, size_t neededSize) {
+_merge(ProcSetObject *lpset, ProcSetObject *rpset, MergePredicate operator, Py_ssize_t neededSize) {
     // memory allocating for the neededSize
     pset_boundary_t *newBoundaries = (pset_boundary_t *) malloc(neededSize * sizeof(pset_boundary_t));
     if (newBoundaries == NULL) {
@@ -271,7 +271,7 @@ _merge(ProcSetObject *lpset, ProcSetObject *rpset, MergePredicate operator, size
     bool enbound = false;
     pset_boundary_t sentinel = MAX_BOUND_VALUE;
 
-    size_t lbound_index = 0, rbound_index = 0, index = 0;
+    Py_ssize_t lbound_index = 0, rbound_index = 0, index = 0;
     pset_boundary_t lhead = lpset->_boundaries[lbound_index];
     pset_boundary_t rhead = rpset->_boundaries[rbound_index];
 
@@ -343,7 +343,7 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
 
     // union case : alloc a memory having the N+M size of the two objects
     //      with N and M the number of interval in the procset
-    size_t neededSize = self->nb_boundary + other->nb_boundary;
+    Py_ssize_t neededSize = self->nb_boundary + other->nb_boundary;
 
     // merge calling
     return _merge(self, other, bitwiseOr, neededSize);
@@ -363,7 +363,7 @@ ProcSet_intersection(ProcSetObject *self, PyObject *args)
 
     // union case : alloc a memory having the N+M size of the two objects
     //      with N and M the number of interval in the procset
-    size_t neededSize = self->nb_boundary > other->nb_boundary ?
+    Py_ssize_t neededSize = self->nb_boundary > other->nb_boundary ?
                         self->nb_boundary : other->nb_boundary;
 
     // merge calling
@@ -384,7 +384,7 @@ ProcSet_difference(ProcSetObject *self, PyObject *args)
 
     // union case : alloc a memory having the N+M size of the two objects
     //      with N and M the number of interval in the procset
-    size_t neededSize = self->nb_boundary;
+    Py_ssize_t neededSize = self->nb_boundary;
 
     // merge calling
     return _merge(self, other, bitwiseSubtraction, neededSize);
@@ -404,7 +404,7 @@ ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
 
     // union case : alloc a memory having the N+M size of the two objects
     //      with N and M the number of interval in the procset
-    size_t neededSize = self->nb_boundary + other->nb_boundary;
+    Py_ssize_t neededSize = self->nb_boundary + other->nb_boundary;
 
     // merge calling
     return _merge(self, other, bitwiseXor, neededSize);
