@@ -2,14 +2,13 @@
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <stdio.h>
 #include <stdbool.h> // C99
 #include "structmember.h" // deprecated, may use descrobject.h
 #include <stdint.h> // C99
 #include <stdlib.h>
 #include <string.h>
-static PyTypeObject ProcSetType;
 
-// define the type of the boundaries of the set
 typedef uint32_t pset_boundary_t;
 pset_boundary_t MAX_BOUND_VALUE = UINT32_MAX;
 
@@ -34,178 +33,108 @@ bool bitwiseXor(bool inLeft, bool inRight) {
 }
 
 
-// define of the procset type
+// Definition of the ProcSet struct
 typedef struct {
+    //Python objet boilerplate
     PyObject_HEAD
-    pset_boundary_t *_boundaries;
+
+    //Boundaries of the ProcSet paired two by two as half-opened intervals
+    pset_boundary_t *_boundaries;   
+
+    //Number of boundaries, (2x nbr of intervals)
     Py_ssize_t nb_boundary;
 } ProcSetObject;
 
-int
-create_pset_from_string(ProcSetObject *self, char *pset_string)
+
+// Deallocation method
+static void ProcSet_dealloc(ProcSetObject *self)
 {
-    pset_boundary_t *tmp;
-    int lenght = strlen(pset_string);
-    /* calculate the needed space to allocate
-     - the input string is like "n-n n-n n-n", with n a digit
-    the worse case is when n is one digit, when we need
-        - strlen(string)//2 + 1 to have enought place to store all the bounds */
-    int needed_space = (lenght+1)/2;
+    // Debug message
+    printf("Calling dealloc on ProcSetObject @%p \n", (void * )self);
 
-    tmp = (pset_boundary_t *) malloc(needed_space * sizeof(pset_boundary_t));
-    if (tmp == NULL) {
-        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory to store the boundaries");
-        return -1;
-    }
+    // We free the memory allocated for the boundaries
+    // using the integrated py function
+    PyMem_Free(self->_boundaries);
 
-    char* bound;
-    Py_ssize_t index;
-
-    bound = pset_string;
-    bound = strtok(bound, " -");
-    index = 0;
-    while (bound != NULL) {
-
-        // check if bound is a digit
-        // printf("bound = %s \n", bound);
-        // if (!isdigit(bound)) {
-        //     free(tmp);
-        //     PyErr_SetString(PyExc_ValueError, "Input boundaries contains non-digits values");
-        //     return -1;
-        // }
-
-        tmp[index] = index%2 == 0 ? atoi(bound) : atoi(bound) + 1; // +1 to store it with half-open interval
-        ++index;
-        bound = strtok(NULL, " -");
-    }
-    // printf("\n");
-
-    
-    // char *st_result, *st_help;
-    // bound = pset_string;
-    // bound = strtok_r(bound, " ", &st_result);
-    // index = 0;
-    // while (bound) {
-    //     // printf("[%s]", bound);
-    //     // if (!isdigit(bound)) {
-    //     //     free(tmp);
-    //     //     PyErr_SetString(PyExc_ValueError, "Input boundaries contains non-digits values");
-    //     //     return -1;
-    //     // }
-    //     // tmp[index++] = atoi(bound);
-
-    //     char* help = strtok_r(bound, "-", &st_help);    
-    //     while (help) {
-    //         printf("<%s>", help);
-    //         // if (!isdigit(bound)) {
-    //         //     free(tmp);
-    //         //     PyErr_SetString(PyExc_ValueError, "Input boundaries contains non-digits values");
-    //         //     return -1;
-    //         // }
-    //         // tmp[index++] = atoi(bound);
-    //         help = strtok_r(NULL, "-", &st_help);
-    //     }
-
-    //     bound = strtok_r(NULL, " ", &st_result);
-    // }
-
-    if (index%2 != 0) {
-        free(tmp);
-        PyErr_SetString(PyExc_ValueError, "The number of boundaries in input must be even");
-        return -1;
-    }
-
-    free(self->_boundaries);
-    self->_boundaries = tmp;
-    self->nb_boundary = index;
-    return 0;
+    // we call the free function of the type
+    Py_TYPE((PyObject *)self)->tp_free((PyObject *) self);
 }
 
-
-static void
-ProcSet_dealloc(ProcSetObject *self)
-{
-    free(self->_boundaries);
-    Py_TYPE(self)->tp_free((PyObject *) self);
-}
-
-static PyObject *
-ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds))
+// new: Method called when an object is created,
+// it does not set values as the ProcSet object is mutable
+static PyObject * ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds))
 {
     ProcSetObject *self;
+    
+    // we allocate memory for our new object using its type's allocator (the default one in this case)
     self = (ProcSetObject *) type->tp_alloc(type, 0);
 
-    if (self != NULL) {
-        self->nb_boundary = 0;
-    }
-
+    // nothing to init because the object is mutable and the integer's default value is not null
     return (PyObject *) self;
 }
 
+// init: initialization function, called after new
+// initializes the procset object from a list of integers (for now);
 static int
 ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 {
-static char *kwlist[] = {"pset", NULL};
-    char *pset_string = NULL;
+    // the object that will be parsed
+    // should be like [a,b,c,...] with abc being u_ints
+    PyObject* liste;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|s", kwlist, &pset_string)) {
-        PyErr_SetString(PyExc_TypeError, "Failed to parse arguments");
+    // if no args were given or if a keyword was given
+    if (!args || kwds){
+        //TODO: explicit error message
+        PyErr_BadArgument();
         return -1;
     }
-    
-    if (pset_string) {
-        create_pset_from_string(self, pset_string);
+
+    // we parse the list and and check for errors
+    if (!PyArg_ParseTuple(args, "O", &liste)){
+        printf("Parsing failed !\n");
+        //we don't clean the buffer since it's and object
+        PyErr_BadArgument();
+        return -1;
     }
 
+    printf("Successfully Parsed !\n");
+
+    //we verify that liste can be sequenced !
+    if (!PySequence_Check(liste)){
+        printf("Parsed object was not a list !\n");
+        //TODO: clearer error message
+        PyErr_BadArgument();
+        return -1;
+    }
+
+    // we allocate space for the boundaries
+    Py_ssize_t length = PySequence_Size(liste); printf("number of elements : %li\n", (long) length);
+    self->_boundaries = (pset_boundary_t * ) PyMem_Malloc(sizeof(pset_boundary_t) * length);
+
+    //side of the interval
+    bool opened = false;
+
+    // we parse every element in the list
+    for (int i = 0; i < (int) length; i++){
+        // The ith object of the list
+        PyObject* obj = PySequence_GetItem(liste, i);
+        self->_boundaries[i] = PyLong_AsLong(obj);
+
+        //we add one if we're one the opened side of the interval
+        if (opened){
+            self->_boundaries[i]++;
+        }
+
+        opened = !opened;
+        self->nb_boundary++;
+    }
+
+    Py_DECREF(liste);
     return 0;
 }
 
-char *
-bounds_to_string(ProcSetObject *procset)
-{
-    // Empty ProcSet
-    if (procset->nb_boundary == 0) {
-        return "";
-    }
-
-    // PART I - Calculate the needed size
-    // Calculate the maximum size of a bound
-    uint32_t max_bound = procset->_boundaries[procset->nb_boundary-1];
-    // As the bounds are supposed to be stored in ascendant way,
-    // the greatest bound is the last one
-    Py_ssize_t max_bound_size = snprintf(NULL, 0, "%u", max_bound); 
-    // Calculate the max size of the final string
-    // Account for the bounds_size, the separators "-" and " ", and "\0"
-    //      Py_ssize_t nb_space = procset->nb_boundary-1;
-    //      Py_ssize_t nb_hyphen = procset->nb_boundary;
-    //      Py_ssize_t needed_size_bounds = procset->nb_boundary*max_bound_size;
-    //      Py_ssize_t size_null_char = 1;
-    //      Py_ssize_t bounds_string_size = nb_space + nb_hyphen + needed_size_bounds + size_null_char;
-    // In one line
-    Py_ssize_t bounds_string_size = procset->nb_boundary * (max_bound_size + 2);
-    // Create a string representation of the boundaries
-    char *p_bounds_string = (char *) malloc(bounds_string_size);
-    if (p_bounds_string == NULL) {
-        PyErr_SetString(PyExc_MemoryError, "Failed to alocate memory");
-        return NULL;
-    }
-        
-    p_bounds_string[0] = '\0';  // Initialize the string with an empty string
-    // Iterate over the boundaries and append them to the string
-    if (procset->nb_boundary > 0) {
-        int writed_char = sprintf(p_bounds_string, "%d-%d",
-            procset->_boundaries[0],
-            procset->_boundaries[1]-1); // -1 to represent it with closed interval
-        for (Py_ssize_t index = 2; index < procset->nb_boundary; index+=2) {
-            writed_char += sprintf(p_bounds_string+writed_char, " %d-%d",
-                procset->_boundaries[index],
-                procset->_boundaries[index+1]-1); // -1 to represent it with closed interval
-        }
-    }
-    return p_bounds_string;
-}
-
-static PyObject *
+// repr should return and object that when called inside eval() should create the same object
+/* static PyObject *
 ProcSet_repr(ProcSetObject *self)
 { 
     PyObject *repr_obj = NULL;
@@ -236,236 +165,47 @@ ProcSet_repr(ProcSetObject *self)
     free(p_repr_string);
 
     return repr_obj;
-}
+} */
 
 static PyObject *
 ProcSet_str(ProcSetObject *self)
 { 
+    //The object we're going to return;
     PyObject *str_obj = NULL;
-    
-    char* bounds_string = bounds_to_string(self);
-    if (bounds_string == NULL) {
+  
+    // an empty string that will be filled with "a b c "
+    char *bounds_string = (char * ) PyMem_Malloc((sizeof(char) * 255));
+    if (!bounds_string){
+        //TODO: pas assez de mem
         return NULL;
     }
+    
+    bounds_string[0] = '\0';
 
+
+    int i = 0;
+    // for every pair of boundaries
+    while(i < self->nb_boundary){
+        // i add [a, b-1] to the output string. (b-1) to account for the half opened 
+        sprintf(bounds_string + strlen(bounds_string), "[%u, %u] ", self->_boundaries[i] ,(self->_boundaries[i+1]) -1);
+        i+= 2;
+    }
+
+    *(bounds_string + strlen(bounds_string)) = '\0';
 
     // Transform to PyObject Unicode
     str_obj = PyUnicode_FromString(bounds_string);
     
     if (strlen(bounds_string) > 0) {
-        free(bounds_string);
+        PyMem_Free(bounds_string);
     }
 
     return str_obj;
 }
 
-PyObject *
-_merge(ProcSetObject *lpset, ProcSetObject *rpset, MergePredicate operator, Py_ssize_t neededSize) {
-    // memory allocating for the neededSize
-    pset_boundary_t *newBoundaries = (pset_boundary_t *) malloc(neededSize * sizeof(pset_boundary_t));
-    if (newBoundaries == NULL) {
-        PyErr_SetString(PyExc_MemoryError, "Failed to allocate the memory to store the new boundaries");
-        return NULL;
-    }
-
-    bool enbound = false;
-    pset_boundary_t sentinel = MAX_BOUND_VALUE;
-
-    Py_ssize_t lbound_index = 0, rbound_index = 0, index = 0;
-    pset_boundary_t lhead = lpset->_boundaries[lbound_index];
-    pset_boundary_t rhead = rpset->_boundaries[rbound_index];
-
-    bool lend = lbound_index%2 != 0;
-    bool rend = rbound_index%2 != 0;
-
-    pset_boundary_t head = lhead < rhead ? lhead : rhead;;
-
-    while (head < sentinel) {
-        bool inleft = (head < lhead) == lend;
-        bool inright = (head < rhead) == rend;
-        bool keep = operator(inleft, inright);
-
-        if (keep ^ enbound) {
-            enbound = !enbound;
-            newBoundaries[index] = head;
-            index++;
-        }
-
-        if (head == lhead) {
-            lbound_index++;
-
-            if (lbound_index < lpset->nb_boundary) {
-                lend = lbound_index%2 != 0;
-                lhead = lpset->_boundaries[lbound_index];
-            } else { // sentinel
-                lhead = sentinel;
-                lend = false;
-            }
-        }
-        if (head == rhead) {
-            rbound_index++;
-            if (rbound_index < rpset->nb_boundary) {
-                rend = rbound_index%2 != 0;
-                rhead = rpset->_boundaries[rbound_index];
-            } else { // sentinel
-                rhead = sentinel;
-                rend = false;
-            }
-        }
-        head = lhead < rhead ? lhead : rhead;
-    }
-
-    ProcSetObject *new_procset = PyObject_New(ProcSetObject, &ProcSetType);
-    if (new_procset == NULL) {
-        free(newBoundaries);
-        // XXX: Peut-être une autre exception ? (mémoire par exemple)
-        PyErr_SetString(PyExc_ValueError, "Failed to create the new ProcSet");
-        return NULL;
-    }
-
-    new_procset->_boundaries = newBoundaries;
-    new_procset->nb_boundary = index;
-
-    return (PyObject *)new_procset;
-
-}
-
-static PyObject *
-ProcSet_union(ProcSetObject *self, PyObject *args)
-{
-
-    ProcSetObject *other;
-
-    if (!PyArg_ParseTuple(args, "O!", &ProcSetType, &other)) {
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
-    }
-
-    // union case : alloc a memory having the N+M size of the two objects
-    //      with N and M the number of interval in the procset
-    Py_ssize_t neededSize = self->nb_boundary + other->nb_boundary;
-
-    // merge calling
-    return _merge(self, other, bitwiseOr, neededSize);
-
-}
-
-static PyObject *
-ProcSet_intersection(ProcSetObject *self, PyObject *args)
-{
-
-    ProcSetObject *other;
-
-    if (!PyArg_ParseTuple(args, "O!", &ProcSetType, &other)) {
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
-    }
-
-    // union case : alloc a memory having the N+M size of the two objects
-    //      with N and M the number of interval in the procset
-    Py_ssize_t neededSize = self->nb_boundary > other->nb_boundary ?
-                        self->nb_boundary : other->nb_boundary;
-
-    // merge calling
-    return _merge(self, other, bitwiseAnd, neededSize);
-
-}
-
-static PyObject *
-ProcSet_difference(ProcSetObject *self, PyObject *args)
-{
-
-    ProcSetObject *other;
-
-    if (!PyArg_ParseTuple(args, "O!", &ProcSetType, &other)) {
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
-    }
-
-    // union case : alloc a memory having the N+M size of the two objects
-    //      with N and M the number of interval in the procset
-    Py_ssize_t neededSize = self->nb_boundary;
-
-    // merge calling
-    return _merge(self, other, bitwiseSubtraction, neededSize);
-
-}
-
-static PyObject *
-ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
-{
-
-    ProcSetObject *other;
-
-    if (!PyArg_ParseTuple(args, "O!", &ProcSetType, &other)) {
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
-    }
-
-    // union case : alloc a memory having the N+M size of the two objects
-    //      with N and M the number of interval in the procset
-    Py_ssize_t neededSize = self->nb_boundary + other->nb_boundary;
-
-    // merge calling
-    return _merge(self, other, bitwiseXor, neededSize);
-
-}
-
-static PyObject *
-ProcSet_aggregate(ProcSetObject *self, PyObject *Py_UNUSED(ignored))
-{
-    ProcSetObject *new_procset = PyObject_New(ProcSetObject, &ProcSetType);
-    if (new_procset == NULL) {
-        // XXX: Peut-être une autre exception ? (mémoire par exemple)
-        PyErr_SetString(PyExc_ValueError, "Failed to create the new ProcSet");
-        return NULL;
-    }
-
-    new_procset->_boundaries = (pset_boundary_t *) malloc(2 * sizeof(pset_boundary_t));
-    if (new_procset->_boundaries == NULL) {
-        PyErr_SetString(PyExc_MemoryError, "Failed to allocate the needed memory");
-        return NULL;
-    }
-    // min value
-    new_procset->_boundaries[0] = self->_boundaries[0];
-    // max value
-    new_procset->_boundaries[1] = self->_boundaries[self->nb_boundary - 1];
-    new_procset->nb_boundary = 2;
-
-    return (PyObject *)new_procset;
-
-}
-
-
-
-static PyObject *
-ProcSet_get_min(ProcSetObject* self, void *Py_UNUSED(closure))
-{
-    if (self->nb_boundary == 0) {
-        // Empty ProcSet, raise a ValueError
-        PyErr_SetString(PyExc_ValueError, "Empty ProcSet");
-        return NULL;
-    } else {
-        // Return the maximum value in the ProcSet
-        return PyLong_FromUnsignedLong(self->_boundaries[0]);
-    }
-}
-
-static PyObject *
-ProcSet_get_max(ProcSetObject* self, void *Py_UNUSED(closure))
-{
-    if (self->nb_boundary == 0) {
-        // Empty ProcSet, raise a ValueError
-        PyErr_SetString(PyExc_ValueError, "Empty ProcSet");
-        return NULL;
-    } else {
-        // Return the maximum value in the ProcSet
-        return PyLong_FromUnsignedLong(self->_boundaries[self->nb_boundary - 1]-1);
-    }
-}
 
 static PyMethodDef ProcSet_methods[] = {
-    {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
+/*     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
     {"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
     {"difference", (PyCFunction) ProcSet_difference, METH_VARARGS, "Function that perform the assemblist difference operation and return a new ProcSet"},
     {"symmetric_difference", (PyCFunction) ProcSet_symmetricDifference, METH_VARARGS, "Function that perform the assemblist symmetric difference operation and return a new ProcSet"},
@@ -476,32 +216,27 @@ static PyMethodDef ProcSet_methods[] = {
     "\n"
     "The convex hull of a non-empty ProcSet is the contiguous ProcSet made\n"
     "of the smallest unique interval containing all intervals from the\n"
-    "non-empty ProcSet."}, 
-    {NULL}
-};
-
-static PyGetSetDef ProcSet_getset[] = {
-    {"min", (getter)ProcSet_get_min, NULL, "The first processor in the ProcSet (in increasing order).", NULL},
-    {"max", (getter)ProcSet_get_max, NULL, "The last processor in the ProcSet (in increasing order).", NULL},
-    {NULL}  // Sentinel
+    "non-empty ProcSet."},  */
+    {NULL, NULL, 0, NULL}
 };
 
 static PyTypeObject ProcSetType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "ProcSet.procset",
-    .tp_doc = "C implementation to represent Procset object",
-    .tp_basicsize = sizeof(ProcSetObject),
-    .tp_itemsize = 0,
-    .tp_repr = (reprfunc) ProcSet_repr,
-    .tp_str = (reprfunc) ProcSet_str,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-    .tp_new = ProcSet_new,
-    .tp_init = (initproc) ProcSet_init,
-    .tp_dealloc = (destructor) ProcSet_dealloc,
-    .tp_methods = ProcSet_methods,
-    .tp_getset = ProcSet_getset,
+    .tp_name = "procset.ProcSet",                           // __name__
+    .tp_doc = "C implementation of the ProcSet datatype",   // __doc__
+    .tp_basicsize = sizeof(ProcSetObject),                  // size of the struct
+    .tp_itemsize = 0,                                       // additional size values for dynamic objects
+/*     .tp_repr = (reprfunc) ProcSet_repr,*/                     // __repr__
+    .tp_str = (reprfunc) ProcSet_str,                       // __str__
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,   // flags, basetype is optional   
+    .tp_new = (newfunc) ProcSet_new,                        // __new__
+     .tp_init = (initproc) ProcSet_init,                    // __init__
+    .tp_dealloc = (destructor) ProcSet_dealloc,             // Method called when the object is not referenced anymore, frees the memory and calls tp_free 
+    .tp_methods = ProcSet_methods,                          // the list of defined methods for this object
+    /* .tp_getset = ProcSet_getset, */                  // the list of defined getters and setters
 };
 
+// basic Module definition
 static PyModuleDef procsetmodule = {
     PyModuleDef_HEAD_INIT,
     .m_name = "procset",
@@ -509,8 +244,10 @@ static PyModuleDef procsetmodule = {
     .m_size = -1,
 };
 
-PyMODINIT_FUNC
-PyInit_procset(void)
+
+
+// basic module init function
+PyMODINIT_FUNC PyInit_procset(void)
 {
     PyObject *m;
     if (PyType_Ready(&ProcSetType) < 0) return NULL;
