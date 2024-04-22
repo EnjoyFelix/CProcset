@@ -35,7 +35,7 @@ bool bitwiseXor(bool inLeft, bool inRight) {
 
 // Definition of the ProcSet struct
 typedef struct {
-    //Python objet boilerplate
+    //Python object boilerplate
     PyObject_HEAD
 
     //Boundaries of the ProcSet paired two by two as half-opened intervals
@@ -44,6 +44,18 @@ typedef struct {
     //Number of boundaries, (2x nbr of intervals)
     Py_ssize_t nb_boundary;
 } ProcSetObject;
+
+//returns the number of intervals in the set
+PyObject *
+ProcSet_count(ProcSetObject *self) {
+    return PyLong_FromLong((long) (self->nb_boundary/2));
+}
+
+//returns true if the number of nb_boundaries == 2 (which means there is only one contiguous interval in the set)
+PyObject *
+ProcSet_iscontiguous(ProcSetObject *self){
+    return (self->nb_boundary == 2 ? Py_True : Py_False);
+}
 
 
 // Deallocation method
@@ -101,7 +113,7 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 
     printf("Successfully Parsed !\n");
 
-    //we verify that liste can be sequenced !
+    //is liste a list ?
     if (!PySequence_Check(liste)){
         printf("Parsed object was not a list !\n");
         //TODO: clearer error message
@@ -142,7 +154,7 @@ ProcSet_str(ProcSetObject *self)
     //The object we're going to return;
     PyObject *str_obj = NULL;
   
-    // an empty string that will be filled with "a b c "
+    // an empty string that will be filled with "a b-c ..."
     char *bounds_string = (char * ) PyMem_Malloc((sizeof(char) * 255));
     if (!bounds_string){
         //TODO: pas assez de mem
@@ -196,6 +208,8 @@ static PyMethodDef ProcSet_methods[] = {
     "The convex hull of a non-empty ProcSet is the contiguous ProcSet made\n"
     "of the smallest unique interval containing all intervals from the\n"
     "non-empty ProcSet."},  */
+    {"count", (PyCFunction) ProcSet_count, METH_NOARGS, "Returns the number of disjoint intervals in the ProcSet."},
+    {"iscontiguous", (PyCFunction) ProcSet_iscontiguous, METH_NOARGS, "Returns ``True`` if the ProcSet is made of a unique interval."},
     {NULL, NULL, 0, NULL}
 };
 
