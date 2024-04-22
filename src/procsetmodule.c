@@ -12,10 +12,10 @@
 typedef uint32_t pset_boundary_t;
 pset_boundary_t MAX_BOUND_VALUE = UINT32_MAX;
 
-// define a function type for the operator
+// type of the predicate function used in the merge algorithm
 typedef bool (*MergePredicate)(bool, bool);
 
-// functions that are making the bitwise operation
+// predicate functions
 bool bitwiseOr(bool inLeft, bool inRight) {
     return inLeft | inRight;
 }
@@ -47,7 +47,8 @@ typedef struct {
 
 
 // Deallocation method
-static void ProcSet_dealloc(ProcSetObject *self)
+static void 
+ProcSet_dealloc(ProcSetObject *self)
 {
     // Debug message
     printf("Calling dealloc on ProcSetObject @%p \n", (void * )self);
@@ -62,7 +63,8 @@ static void ProcSet_dealloc(ProcSetObject *self)
 
 // new: Method called when an object is created,
 // it does not set values as the ProcSet object is mutable
-static PyObject * ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds))
+static PyObject * 
+ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(kwds))
 {
     ProcSetObject *self;
     
@@ -89,7 +91,7 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
         return -1;
     }
 
-    // we parse the list and and check for errors
+    // we try to parse the argument as a list 
     if (!PyArg_ParseTuple(args, "O", &liste)){
         printf("Parsing failed !\n");
         //we don't clean the buffer since it's and object
@@ -108,7 +110,8 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
     }
 
     // we allocate space for the boundaries
-    Py_ssize_t length = PySequence_Size(liste); printf("number of elements : %li\n", (long) length);
+    Py_ssize_t length = PySequence_Size(liste);
+    printf("number of elements : %li\n", (long) length);
     self->_boundaries = (pset_boundary_t * ) PyMem_Malloc(sizeof(pset_boundary_t) * length);
 
     //side of the interval
@@ -133,40 +136,6 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
     return 0;
 }
 
-// repr should return and object that when called inside eval() should create the same object
-/* static PyObject *
-ProcSet_repr(ProcSetObject *self)
-{ 
-    PyObject *repr_obj = NULL;
-    
-    char* bounds_string = bounds_to_string(self);
-    if (bounds_string == NULL) {
-        return NULL;
-    }
-
-    // Allocate the needed memory
-    Py_ssize_t repr_string_size = strlen(bounds_string) + 10; // +10 to represent "ProcSet(", ")" and "\0"
-    char *p_repr_string = (char *) malloc(repr_string_size);
-    if (p_repr_string == NULL) {
-        free(bounds_string);
-        PyErr_SetString(PyExc_MemoryError, "Failed to alocate memory");
-        return NULL;
-    }
-
-    // Format the complete representation string
-    sprintf(p_repr_string, "ProcSet(%s)", bounds_string);
-
-    // Transform to PyObject Unicode
-    repr_obj = PyUnicode_FromString(p_repr_string);
-
-    if (strlen(bounds_string) > 0) {
-        free(bounds_string);
-    }
-    free(p_repr_string);
-
-    return repr_obj;
-} */
-
 static PyObject *
 ProcSet_str(ProcSetObject *self)
 { 
@@ -186,8 +155,18 @@ ProcSet_str(ProcSetObject *self)
     int i = 0;
     // for every pair of boundaries
     while(i < self->nb_boundary){
-        // i add [a, b-1] to the output string. (b-1) to account for the half opened 
-        sprintf(bounds_string + strlen(bounds_string), "[%u, %u] ", self->_boundaries[i] ,(self->_boundaries[i+1]) -1);
+        // a and b -> [a, b[
+        pset_boundary_t a = self->_boundaries[i];
+        pset_boundary_t b = (self->_boundaries[i+1]) -1; //b -1 as the interval is half opened 
+
+        if (a == b){
+            //single number
+            sprintf(bounds_string + strlen(bounds_string), "%u ", a);
+        } else {
+            //interval
+            sprintf(bounds_string + strlen(bounds_string), "%u-%u ",  a,b);
+        }
+
         i+= 2;
     }
 
