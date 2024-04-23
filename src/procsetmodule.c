@@ -228,6 +228,26 @@ static PyObject* ProcSequence_getItem(ProcSetObject *self, Py_ssize_t pos){
     return PyLong_FromUnsignedLong(self->_boundaries[itv] + (pset_boundary_t) (pos - i));
 }
 
+// __contains__
+static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
+    // conversion of the PyObject to a C object
+    pset_boundary_t value = (pset_boundary_t) PyLong_AsUnsignedLong(val);
+
+    // easiest case: the value is greater than the last proc or lower than the first proc
+    if (value < *(self->_boundaries) | value >= self->_boundaries[self->nb_boundary - 1]){
+        return 0;
+    }
+
+    // if not, we're going to need to go through the intervals
+    int itv = 0;
+
+    //while we still have intervals and the value is lower than the lower bound of the current interval
+    while (itv < self->nb_boundary && self->_boundaries[itv] < value){
+        itv += 2;
+    }
+    return self->_boundaries[itv+1] > value;        // the value is in the set if it's lower than the upper bound
+} 
+
 // Liste des methodes qui permettent a procset d'etre utilisé comme un objet sequence
 PySequenceMethods ProcSequenceMethods = {
     (lenfunc) ProcSequence_length,               // sq_length    __len__
@@ -235,9 +255,9 @@ PySequenceMethods ProcSequenceMethods = {
     0,                                          // sq_repeat    __mul__
     (ssizeargfunc) ProcSequence_getItem,        // sq_item      __getitem__
     0,                                          // sq_ass_item   __setitem__ / __delitem__
-    0,                                          // sq_contains  __contains__
     0,                                          // sq_inplace_concat
     0,                                          // sq_inplace_repeat
+    (objobjproc) ProcSequence_contains,         // sq_contains  __contains__
     0,                                          // ?
     0,                                          // ?
 };
