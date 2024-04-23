@@ -1,5 +1,3 @@
-// TODO Global : not use the basics allocator functions, but the PyMem equivalent 
-
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <stdio.h>
@@ -100,7 +98,6 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 
     // if no args were given or if a keyword was given
     if (!args || kwds){
-        //TODO: explicit error message
         PyErr_BadArgument();
         return -1;
     }
@@ -117,9 +114,7 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 
     //is liste a list ?
     if (!PySequence_Check(liste)){
-        printf("Parsed object was not a list !\n");
-        //TODO: clearer error message
-        PyErr_BadArgument();
+        PyErr_SetString(PyExc_ArithmeticError, "The given argument should be of type 'list' !");
         return -1;
     }
 
@@ -159,7 +154,7 @@ ProcSet_str(ProcSetObject *self)
     // an empty string that will be filled with "a b-c ..."
     char *bounds_string = (char * ) PyMem_Malloc((sizeof(char) * STR_BUFFER_SIZE));
     if (!bounds_string){
-        //TODO: pas assez de mem
+        PyErr_SetString(PyExc_BufferError, "Not enough memory !");
         return NULL;
     }
     
