@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define STR_BUFFER_SIZE 255
+
 typedef uint32_t pset_boundary_t;
 pset_boundary_t MAX_BOUND_VALUE = UINT32_MAX;
 
@@ -155,7 +157,7 @@ ProcSet_str(ProcSetObject *self)
     PyObject *str_obj = NULL;
   
     // an empty string that will be filled with "a b-c ..."
-    char *bounds_string = (char * ) PyMem_Malloc((sizeof(char) * 255));
+    char *bounds_string = (char * ) PyMem_Malloc((sizeof(char) * STR_BUFFER_SIZE));
     if (!bounds_string){
         //TODO: pas assez de mem
         return NULL;
