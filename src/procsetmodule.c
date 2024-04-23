@@ -166,11 +166,9 @@ ProcSet_str(ProcSetObject *self)
 
     // Transform to PyObject Unicode
     str_obj = PyUnicode_FromString(bounds_string);
-    
-    if (strlen(bounds_string) > 0) {
-        PyMem_Free(bounds_string);
-    }
 
+    //freeing the allocated memory
+    PyMem_Free(bounds_string);
     return str_obj;
 }
 
@@ -178,7 +176,7 @@ ProcSet_str(ProcSetObject *self)
 static Py_ssize_t
 ProcSequence_length(ProcSetObject* self){
     //Si l'objet n'existe pas 
-    if (!self){
+    if (!self || !self->_boundaries){
         PyErr_SetString(PyExc_Exception, "self is null !");
         return -1;
     }
@@ -234,7 +232,7 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
     pset_boundary_t value = (pset_boundary_t) PyLong_AsUnsignedLong(val);
 
     // easiest case: the value is greater than the last proc or lower than the first proc
-    if (value < *(self->_boundaries) | value >= self->_boundaries[self->nb_boundary - 1]){
+    if (!self->_boundaries || value < *(self->_boundaries) | value >= self->_boundaries[self->nb_boundary - 1]){
         return 0;
     }
 
@@ -291,7 +289,7 @@ static PyTypeObject ProcSetType = {
     .tp_str = (reprfunc) ProcSet_str,                       // __str__
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,   // flags, basetype is optional   
     .tp_new = (newfunc) ProcSet_new,                        // __new__
-     .tp_init = (initproc) ProcSet_init,                    // __init__
+    .tp_init = (initproc) ProcSet_init,                    // __init__
     .tp_dealloc = (destructor) ProcSet_dealloc,             // Method called when the object is not referenced anymore, frees the memory and calls tp_free 
     .tp_methods = ProcSet_methods,                          // the list of defined methods for this object
     /* .tp_getset = ProcSet_getset, */                  // the list of defined getters and setters
