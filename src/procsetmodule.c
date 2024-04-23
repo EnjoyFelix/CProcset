@@ -1,5 +1,4 @@
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
+#include "procsetheader.h"
 #include <stdio.h>
 #include <stdbool.h> // C99
 #include "structmember.h" // deprecated, may use descrobject.h
@@ -8,9 +7,6 @@
 #include <string.h>
 
 #define STR_BUFFER_SIZE 255
-
-typedef uint32_t pset_boundary_t;
-pset_boundary_t MAX_BOUND_VALUE = UINT32_MAX;
 
 // type of the predicate function used in the merge algorithm
 typedef bool (*MergePredicate)(bool, bool);
@@ -31,19 +27,6 @@ bool bitwiseSubtraction(bool inLeft, bool inRight) {
 bool bitwiseXor(bool inLeft, bool inRight) {
     return inLeft ^ inRight;
 }
-
-
-// Definition of the ProcSet struct
-typedef struct {
-    //Python object boilerplate
-    PyObject_HEAD
-
-    //Boundaries of the ProcSet paired two by two as half-opened intervals
-    pset_boundary_t *_boundaries;   
-
-    //Number of boundaries, (2x nbr of intervals)
-    Py_ssize_t nb_boundary;
-} ProcSetObject;
 
 //returns the number of intervals in the set
 PyObject *
@@ -191,6 +174,74 @@ ProcSet_str(ProcSetObject *self)
     return str_obj;
 }
 
+// __len__
+static Py_ssize_t
+ProcSequence_length(ProcSetObject* self){
+    //Si l'objet n'existe pas 
+    if (!self){
+        PyErr_SetString(PyExc_Exception, "self is null !");
+        return -1;
+    }
+
+    // somme de la taille de tout les intervals de la structure
+    Py_ssize_t res = 0;
+
+    // pour chaque interval
+    for (int i = 0; i < self->nb_boundary; i+=2){
+        //On ajoute sa taille au résultat
+        //La taille n'a pas besoin de +1 car intervals semi ouverts
+        res += self->_boundaries[i+1] - self->_boundaries[i]; 
+    }
+
+    //On retourne le résultat
+    return res;
+}
+
+// __getitem__
+static PyObject* ProcSequence_getItem(ProcSetObject *self, Py_ssize_t pos){
+    //on vérifie que l'objet est atteignable (!NULL, pos < len), pas besoin de vérifier pos > 0 car pos négative -> positive = len + pos
+    Py_ssize_t len = ProcSequence_length(self);
+    if (len == -1){
+        //trying to access null
+        PyErr_SetString(PyExc_Exception, "self is NULL !");
+        return NULL;
+    } else if (len < pos){
+        PyErr_SetString(PyExc_Exception, "Trying to access out of bound position !");
+        return NULL;
+    }
+
+    int i = 0;          //position                
+    int itv = 0;        //current interval
+    while (i < pos){
+        pset_boundary_t a = self->_boundaries[itv];                 // left element of the current interval
+        pset_boundary_t b = self->_boundaries[itv+1];               // right element of the current interval
+
+        if ((pos - i) < b-a) { // if the interval we're looking for is inside the current interval
+            break;
+        }
+
+        i += (b-a);
+        itv += 2;
+    }
+
+    // ith element
+    return PyLong_FromUnsignedLong(self->_boundaries[itv] + (pset_boundary_t) (pos - i));
+}
+
+// Liste des methodes qui permettent a procset d'etre utilisé comme un objet sequence
+PySequenceMethods ProcSequenceMethods = {
+    (lenfunc) ProcSequence_length,               // sq_length    __len__
+    0,                                          // sq_concat    __add__
+    0,                                          // sq_repeat    __mul__
+    (ssizeargfunc) ProcSequence_getItem,        // sq_item      __getitem__
+    0,                                          // sq_ass_item   __setitem__ / __delitem__
+    0,                                          // sq_contains  __contains__
+    0,                                          // sq_inplace_concat
+    0,                                          // sq_inplace_repeat
+    0,                                          // ?
+    0,                                          // ?
+};
+
 
 static PyMethodDef ProcSet_methods[] = {
 /*     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
@@ -224,6 +275,7 @@ static PyTypeObject ProcSetType = {
     .tp_dealloc = (destructor) ProcSet_dealloc,             // Method called when the object is not referenced anymore, frees the memory and calls tp_free 
     .tp_methods = ProcSet_methods,                          // the list of defined methods for this object
     /* .tp_getset = ProcSet_getset, */                  // the list of defined getters and setters
+    .tp_as_sequence = &ProcSequenceMethods,                 //pointer to the sequence object
 };
 
 // basic Module definition

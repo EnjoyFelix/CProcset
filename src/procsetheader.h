@@ -1,4 +1,4 @@
-#ifndef PROCSET_HEADER_H_  /* convention classique: nom du module en majuscules, suivi de _H_ */
+#ifndef PROCSET_HEADER_H_
 #define PROCSET_HEADER_H_
 
 
