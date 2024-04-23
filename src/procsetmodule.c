@@ -75,56 +75,81 @@ ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(k
 static int
 ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 {
-    // the object that will be parsed
-    // should be like [a,b,c,...] with abc being u_ints
-    PyObject* liste;
+    //this function should only receive sequencable args / intergers in increasing order. 
 
-    // if no args were given or if a keyword was given
+    // if no args were given:
     if (!args || kwds){
-        PyErr_BadArgument();
+        //return 0 as this can happen in the py implementation
+        return 0;
+    }
+
+    // we allocate the memory for the list
+    self->_boundaries = (pset_boundary_t *) PyMem_Malloc(PySequence_Size(args) * 2 * sizeof(pset_boundary_t));
+    if (!self->_boundaries){
+        PyErr_NoMemory();
         return -1;
     }
 
-    // we try to parse the argument as a list 
-    if (!PyArg_ParseTuple(args, "O", &liste)){
-        printf("Parsing failed !\n");
-        //we don't clean the buffer since it's and object
-        PyErr_BadArgument();
+    // an iterator on args (args is a list of objects)
+    PyObject * iterator = PyObject_GetIter(args);
+
+    // if args did not return an iterator (iterator protocol)
+    if (!iterator){
+        PyErr_SetString(PyExc_Exception, "Could not get an iterator on given args");        // we set the error message
+        PyMem_Free(self->_boundaries);  // we free the allocated space
         return -1;
     }
 
-    printf("Successfully Parsed !\n");
+    // the current items
+    PyObject * currentItem;
 
-    //is liste a list ?
-    if (!PySequence_Check(liste)){
-        PyErr_SetString(PyExc_ArithmeticError, "The given argument should be of type 'list' !");
-        return -1;
-    }
+    //the position of the interval
+    int itv = 0;
 
-    // we allocate space for the boundaries
-    Py_ssize_t length = PySequence_Size(liste);
-    printf("number of elements : %li\n", (long) length);
-    self->_boundaries = (pset_boundary_t * ) PyMem_Malloc(sizeof(pset_boundary_t) * length);
+    // for every argument
+    while ((currentItem = PyIter_Next(iterator))) {
+        //if the argument is iterable
+        if (PySequence_Check(currentItem)){
+            // TODO : CHECk FOR LENGTH
 
-    //side of the interval
-    bool opened = false;
+            // bounds of the interval as PyObjects
+            PyObject *_a = PySequence_GetItem(currentItem, 0);
+            PyObject *_b = PySequence_GetItem(currentItem, 1);
 
-    // we parse every element in the list
-    for (int i = 0; i < (int) length; i++){
-        // The ith object of the list
-        PyObject* obj = PySequence_GetItem(liste, i);
-        self->_boundaries[i] = PyLong_AsLong(obj);
+            // bound on the interval as procset boundaries
+            pset_boundary_t a = PyLong_AsLong(_a);
+            pset_boundary_t b = PyLong_AsLong(_b);
 
-        //we add one if we're one the opened side of the interval
-        if (opened){
-            self->_boundaries[i]++;
+            // DECREF is called here because getItem gives a pointer to a new object
+            Py_DECREF(_a);
+            Py_DECREF(_b);
+
+            self->_boundaries[itv] = a;             // lower bound
+            self->_boundaries[itv+1] = b+1;         // greater bound, +1 cause half opened
+        }
+        // else if the argument is a number
+        else if (PyNumber_Check(currentItem)){
+            //TODO : check for error
+            pset_boundary_t val = PyLong_AsLong(currentItem);
+            self->_boundaries[itv] = val;          // lower bound
+            self->_boundaries[itv+1] = val+1;      // greater bound
+
+        } 
+        //bad argument
+        else {
+            Py_DECREF(currentItem);
+            Py_DECREF(iterator);
+            PyMem_Free(self->_boundaries);  // we free the allocated space
+            PyErr_BadArgument();
+            return -1;
         }
 
-        opened = !opened;
-        self->nb_boundary++;
-    }
+        itv += 2;                           // we move on to the next interval
+        Py_DECREF(currentItem);             // we allow the current element to be gc'ed 
+    };  
 
-    Py_DECREF(liste);
+    Py_DECREF(iterator);                    // we free the now useless iterator
+    self->nb_boundary = PySequence_Size(args) * 2;
     return 0;
 }
 
