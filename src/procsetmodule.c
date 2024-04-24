@@ -278,7 +278,7 @@ static PyObject* ProcSequence_getItem(ProcSetObject *self, Py_ssize_t pos){
         //trying to access null
         PyErr_SetString(PyExc_Exception, "self is NULL !");
         return NULL;
-    } else if (len < pos){
+    } else if (len <= pos){
         PyErr_SetString(PyExc_Exception, "Trying to access out of bound position !");
         return NULL;
     }
@@ -321,20 +321,6 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
     return self->_boundaries[itv+1] > value;        // the value is in the set if it's lower than the upper bound
 } 
 
-// __iter__
-static 
-PyObject* ProcSet_iter(ProcSetObject* self){
-    printf("called iter on ProcSetObject @%p", (void *) self);
-    return Py_NotImplemented;
-}
-
-// __next__
-static
-PyObject* ProcSet_next(PyObject *iterator){
-    printf("called next on ProcSetObject iterator @%p", (void *) iterator);
-    return Py_NotImplemented;
-}
-
 // Liste des methodes qui permettent a procset d'etre utilisé comme un objet sequence
 PySequenceMethods ProcSequenceMethods = {
     (lenfunc) ProcSequence_length,               // sq_length    __len__
@@ -371,6 +357,7 @@ static PyTypeObject ProcSetType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "procset.ProcSet",                           // __name__
     .tp_doc = "C implementation of the ProcSet datatype",   // __doc__
+    .tp_version_tag = 1,                                    // version
     .tp_basicsize = sizeof(ProcSetObject),                  // size of the struct
     .tp_itemsize = 0,                                       // additional size values for dynamic objects
     .tp_repr = (reprfunc) ProcSet_repr,                     // __repr__
@@ -382,8 +369,6 @@ static PyTypeObject ProcSetType = {
     .tp_methods = ProcSet_methods,                          // the list of defined methods for this object
     .tp_getset = ProcSet_getset,                            // the list of defined getters and setters
     .tp_as_sequence = &ProcSequenceMethods,                 // pointer to the sequence object
-    .tp_iter = (getiterfunc) ProcSet_iter,                  // __iter__
-    .tp_iternext = (iternextfunc) ProcSet_next,             // __next__
 };
 
 // basic Module definition
