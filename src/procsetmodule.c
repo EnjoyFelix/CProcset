@@ -131,6 +131,7 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
     return 0;
 }
 
+// __repr__
 static PyObject *
 ProcSet_repr(ProcSetObject *self){
     //The object we're going to return;
@@ -168,6 +169,7 @@ ProcSet_repr(ProcSetObject *self){
     return str_obj;
 }
 
+// __str__
 static PyObject *
 ProcSet_str(ProcSetObject *self)
 { 
@@ -286,6 +288,18 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
     return self->_boundaries[itv+1] > value;        // the value is in the set if it's lower than the upper bound
 } 
 
+// __iter__
+static 
+PyObject* ProcSet_iter(ProcSetObject* self){
+    return Py_NotImplemented;
+}
+
+// __next__
+static
+PyObject* ProcSet_next(PyObject *iterator){
+    return Py_NotImplemented;
+}
+
 // Liste des methodes qui permettent a procset d'etre utilisé comme un objet sequence
 PySequenceMethods ProcSequenceMethods = {
     (lenfunc) ProcSequence_length,               // sq_length    __len__
@@ -299,7 +313,6 @@ PySequenceMethods ProcSequenceMethods = {
     0,                                          // ?
     0,                                          // ?
 };
-
 
 static PyMethodDef ProcSet_methods[] = {
 /*     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
@@ -329,11 +342,13 @@ static PyTypeObject ProcSetType = {
     .tp_str = (reprfunc) ProcSet_str,                       // __str__
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,   // flags, basetype is optional   
     .tp_new = (newfunc) ProcSet_new,                        // __new__
-    .tp_init = (initproc) ProcSet_init,                    // __init__
+    .tp_init = (initproc) ProcSet_init,                     // __init__
     .tp_dealloc = (destructor) ProcSet_dealloc,             // Method called when the object is not referenced anymore, frees the memory and calls tp_free 
     .tp_methods = ProcSet_methods,                          // the list of defined methods for this object
-    /* .tp_getset = ProcSet_getset, */                  // the list of defined getters and setters
-    .tp_as_sequence = &ProcSequenceMethods,                 //pointer to the sequence object
+    /* .tp_getset = ProcSet_getset, */                            // the list of defined getters and setters
+    .tp_as_sequence = &ProcSequenceMethods,                 // pointer to the sequence object
+    .tp_iter = (getiterfunc) ProcSet_iter,                  // __iter__
+    .tp_iternext = (iternextfunc) ProcSet_next,             // __next__
 };
 
 // basic Module definition
@@ -343,8 +358,6 @@ static PyModuleDef procsetmodule = {
     .m_doc = "ProcSet module to manipulate set of processor",
     .m_size = -1,
 };
-
-
 
 // basic module init function
 PyMODINIT_FUNC PyInit_procset(void)
