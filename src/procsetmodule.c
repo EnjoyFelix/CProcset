@@ -1,32 +1,12 @@
 #include "procsetheader.h"
+#include "mergepredicate.h"
 #include <stdio.h>
-#include <stdbool.h> // C99
 #include "structmember.h" // deprecated, may use descrobject.h
 #include <stdint.h> // C99
 #include <stdlib.h>
 #include <string.h>
 
 #define STR_BUFFER_SIZE 255
-
-// type of the predicate function used in the merge algorithm
-typedef bool (*MergePredicate)(bool, bool);
-
-// predicate functions
-bool bitwiseOr(bool inLeft, bool inRight) {
-    return inLeft | inRight;
-}
-
-bool bitwiseAnd(bool inLeft, bool inRight) {
-    return inLeft & inRight;
-}
-
-bool bitwiseSubtraction(bool inLeft, bool inRight) {
-    return inLeft & (!inRight);
-}
-
-bool bitwiseXor(bool inLeft, bool inRight) {
-    return inLeft ^ inRight;
-}
 
 //returns the number of intervals in the set
 PyObject *
@@ -71,12 +51,10 @@ ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(k
 }
 
 // init: initialization function, called after new
-// initializes the procset object from a list of integers (for now);
+// initializes the procset object, this function should only receive sequencable args / intergers in increasing order. 
 static int
 ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 {
-    //this function should only receive sequencable args / intergers in increasing order. 
-
     // if no args were given:
     if (!args || kwds){
         //return 0 as this can happen in the py implementation
@@ -100,7 +78,7 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
         return -1;
     }
 
-    // the current items
+    // the current item
     PyObject * currentItem;
 
     //the position of the interval
