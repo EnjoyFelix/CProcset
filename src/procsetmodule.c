@@ -11,13 +11,19 @@
 //returns the number of intervals in the set
 PyObject *
 ProcSet_count(ProcSetObject *self) {
-    return PyLong_FromLong((long) (self->nb_boundary/2));
+    return PyLong_FromLong((long) (*(self->nb_boundary)/2));
 }
 
 //returns true if the number of nb_boundaries == 2 (which means there is only one contiguous interval in the set)
 PyObject *
 ProcSet_iscontiguous(ProcSetObject *self){
-    return (self->nb_boundary == 2 ? Py_True : Py_False);
+    return (*(self->nb_boundary) == 2 ? Py_True : Py_False);
+}
+
+// returns an iterator
+PyObject *
+ProcSet_intervals(ProcSetObject *self){
+    return PyObject_GetIter((PyObject*) self);
 }
 
 // returns the lower bound of the first interval
@@ -43,7 +49,7 @@ ProcSet_max(ProcSetObject *self){
     }
 
     //returns the first element 
-    return PyLong_FromLong(self->_boundaries[self->nb_boundary -1] -1 );    //-1 to account for the half opened
+    return PyLong_FromLong(self->_boundaries[*(self->nb_boundary) -1] -1 );    //-1 to account for the half opened
 }
 
 // list of the getters and setters
@@ -65,6 +71,9 @@ ProcSet_dealloc(ProcSetObject *self)
     // using the integrated py function
     PyMem_Free(self->_boundaries);
 
+    // same for the nb of boundaries
+    PyMem_Free(self->nb_boundary);
+
     // we call the free function of the type
     Py_TYPE((PyObject *)self)->tp_free((PyObject *) self);
 }
@@ -84,7 +93,7 @@ ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(k
 }
 
 // init: initialization function, called after new
-// initializes the procset object, this function should only receive sequencable args / intergers in increasing order. 
+// initializes the procset object, this function should only receive sequenceable args / intergers in increasing order. 
 static int
 ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 {
@@ -97,6 +106,12 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
     // we allocate the memory for the list
     self->_boundaries = (pset_boundary_t *) PyMem_Malloc(PySequence_Size(args) * 2 * sizeof(pset_boundary_t));
     if (!self->_boundaries){
+        PyErr_NoMemory();
+        return -1;
+    }
+
+    self->nb_boundary = (Py_ssize_t *) PyMem_Malloc(sizeof(Py_ssize_t));
+    if (!self->nb_boundary){
         PyErr_NoMemory();
         return -1;
     }
@@ -160,7 +175,7 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
     };  
 
     Py_DECREF(iterator);                    // we free the now useless iterator
-    self->nb_boundary = PySequence_Size(args) * 2;
+    *(self->nb_boundary) = 0 | (PySequence_Size(args) * 2);
     return 0;
 }
 
@@ -175,7 +190,7 @@ ProcSet_repr(ProcSetObject *self){
 
     int i = 0;
     // for every pair of boundaries
-    while(i < self->nb_boundary){
+    while(i < *(self->nb_boundary)){
         if (i != 0){
             strcat(bounds_string + strlen(bounds_string), ", ");
         };
@@ -221,7 +236,7 @@ ProcSet_str(ProcSetObject *self)
 
     int i = 0;
     // for every pair of boundaries
-    while(i < self->nb_boundary){
+    while(i < *(self->nb_boundary)){
         // a and b -> [a, b[
         pset_boundary_t a = self->_boundaries[i];
         pset_boundary_t b = (self->_boundaries[i+1]) -1; //b -1 as the interval is half opened 
@@ -260,7 +275,7 @@ ProcSequence_length(ProcSetObject* self){
     Py_ssize_t res = 0;
 
     // pour chaque interval
-    for (int i = 0; i < self->nb_boundary; i+=2){
+    for (int i = 0; i < *(self->nb_boundary); i+=2){
         //On ajoute sa taille au résultat
         //La taille n'a pas besoin de +1 car intervals semi ouverts
         res += self->_boundaries[i+1] - self->_boundaries[i]; 
@@ -274,12 +289,13 @@ ProcSequence_length(ProcSetObject* self){
 static PyObject* ProcSequence_getItem(ProcSetObject *self, Py_ssize_t pos){
     //on vérifie que l'objet est atteignable (!NULL, pos < len), pas besoin de vérifier pos > 0 car pos négative -> positive = len + pos
     Py_ssize_t len = ProcSequence_length(self);
-    if (len == -1){
+    if (len <= 0L){
         //trying to access null
-        PyErr_SetString(PyExc_Exception, "self is NULL !");
+        //can't throw an error because it doesn't get caught by next :/
         return NULL;
     } else if (len <= pos){
-        PyErr_SetString(PyExc_Exception, "Trying to access out of bound position !");
+        //PyErr_SetString(PyExc_Exception, "Trying to access out of bound position !");
+        //can't throw an error because it doesn't get caught by next :/
         return NULL;
     }
 
@@ -307,7 +323,7 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
     pset_boundary_t value = (pset_boundary_t) PyLong_AsUnsignedLong(val);
 
     // easiest case: the value is greater than the last proc or lower than the first proc
-    if (!self->_boundaries || value < *(self->_boundaries) | value >= self->_boundaries[self->nb_boundary - 1]){
+    if (!self->_boundaries || value < *(self->_boundaries) | value >= self->_boundaries[*(self->nb_boundary) - 1]){
         return 0;
     }
 
@@ -315,7 +331,7 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
     int itv = 0;
 
     //while we still have intervals and the value is lower than the lower bound of the current interval
-    while (itv < self->nb_boundary && self->_boundaries[itv] < value){
+    while (itv < *(self->nb_boundary) && self->_boundaries[itv] < value){
         itv += 2;
     }
     return self->_boundaries[itv+1] > value;        // the value is in the set if it's lower than the upper bound
@@ -335,6 +351,7 @@ PySequenceMethods ProcSequenceMethods = {
     0,                                          // ?
 };
 
+// methods
 static PyMethodDef ProcSet_methods[] = {
 /*     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
     {"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
@@ -348,11 +365,13 @@ static PyMethodDef ProcSet_methods[] = {
     "The convex hull of a non-empty ProcSet is the contiguous ProcSet made\n"
     "of the smallest unique interval containing all intervals from the\n"
     "non-empty ProcSet."},  */
-    {"count", (PyCFunction) ProcSet_count, METH_NOARGS, "Returns the number of disjoint intervals in the ProcSet."},
+    {"intervals", (PyCFunction) ProcSet_intervals, METH_NOARGS, "Return an iterator over the intervals of the ProcSet in increasing order."},
+    {"count", (PyCFunction) ProcSet_count, METH_NOARGS, "Return the number of disjoint intervals in the ProcSet."},
     {"iscontiguous", (PyCFunction) ProcSet_iscontiguous, METH_NOARGS, "Returns ``True`` if the ProcSet is made of a unique interval."},
     {NULL, NULL, 0, NULL}
 };
 
+// Type definition
 static PyTypeObject ProcSetType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "procset.ProcSet",                           // __name__

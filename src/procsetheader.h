@@ -10,14 +10,15 @@ pset_boundary_t MAX_BOUND_VALUE = UINT32_MAX;
 
 // Definition of the ProcSet struct
 typedef struct {
-    //Python object boilerplate
+    // Python object boilerplate
     PyObject_HEAD
 
-    //Boundaries of the ProcSet paired two by two as half-opened intervals
+    // Boundaries of the ProcSet paired two by two as half-opened intervals
     pset_boundary_t *_boundaries;   
 
-    //Number of boundaries, (2x nbr of intervals)
-    Py_ssize_t nb_boundary;
+    // pointer to the Number of boundaries, (2x nbr of intervals)
+    // --> has to be a pointer because of shallow copies
+    Py_ssize_t * nb_boundary;
 } ProcSetObject;
 
 
