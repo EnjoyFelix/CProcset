@@ -20,6 +20,39 @@ ProcSet_iscontiguous(ProcSetObject *self){
     return (self->nb_boundary == 2 ? Py_True : Py_False);
 }
 
+// returns the lower bound of the first interval
+static PyObject*
+ProcSet_min(ProcSetObject *self){
+    // if null
+    if (!self || !self->_boundaries){
+        //TODO: set an exception
+        return NULL;
+    }
+
+    //returns the first element 
+    return PyLong_FromLong(*(self->_boundaries));
+}
+
+// returns the upper bound of the last interval
+static PyObject*
+ProcSet_max(ProcSetObject *self){
+    // if null
+    if (!self || !self->_boundaries){
+        //TODO: set an exception
+        return NULL;
+    }
+
+    //returns the first element 
+    return PyLong_FromLong(self->_boundaries[self->nb_boundary -1] -1 );    //-1 to account for the half opened
+}
+
+// list of the getters and setters
+static PyGetSetDef ProcSet_getset[] = {
+    //name, get, set, doc, additional
+    {"min", (getter) ProcSet_min, NULL ,"The first processor in the ProcSet (in increasing order).", NULL},
+    {"max", (getter) ProcSet_max, NULL ,"The last processor in the ProcSet (in increasing order).", NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
 
 // Deallocation method
 static void 
@@ -291,12 +324,14 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
 // __iter__
 static 
 PyObject* ProcSet_iter(ProcSetObject* self){
+    printf("called iter on ProcSetObject @%p", (void *) self);
     return Py_NotImplemented;
 }
 
 // __next__
 static
 PyObject* ProcSet_next(PyObject *iterator){
+    printf("called next on ProcSetObject iterator @%p", (void *) iterator);
     return Py_NotImplemented;
 }
 
@@ -345,7 +380,7 @@ static PyTypeObject ProcSetType = {
     .tp_init = (initproc) ProcSet_init,                     // __init__
     .tp_dealloc = (destructor) ProcSet_dealloc,             // Method called when the object is not referenced anymore, frees the memory and calls tp_free 
     .tp_methods = ProcSet_methods,                          // the list of defined methods for this object
-    /* .tp_getset = ProcSet_getset, */                            // the list of defined getters and setters
+    .tp_getset = ProcSet_getset,                            // the list of defined getters and setters
     .tp_as_sequence = &ProcSequenceMethods,                 // pointer to the sequence object
     .tp_iter = (getiterfunc) ProcSet_iter,                  // __iter__
     .tp_iternext = (iternextfunc) ProcSet_next,             // __next__
