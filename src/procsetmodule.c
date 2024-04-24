@@ -132,6 +132,43 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+ProcSet_repr(ProcSetObject *self){
+    //The object we're going to return;
+    PyObject *str_obj = NULL;
+
+    // an empty string that will be filled with "ProcSet((a,b), c, (d,e))"
+    char bounds_string[STR_BUFFER_SIZE] = "Procset(";
+
+    int i = 0;
+    // for every pair of boundaries
+    while(i < self->nb_boundary){
+        if (i != 0){
+            strcat(bounds_string + strlen(bounds_string), ", ");
+        };
+
+        // a and b -> [a, b[
+        pset_boundary_t a = self->_boundaries[i];
+        pset_boundary_t b = (self->_boundaries[i+1]) -1; //b -1 as the interval is half opened 
+
+        if (a == b){
+            //single number
+            sprintf(bounds_string + strlen(bounds_string), "%u", a);
+        } else {
+            //interval
+            sprintf(bounds_string + strlen(bounds_string), "(%u, %u)",  a,b);
+        }
+
+        i+= 2;
+    }
+
+    strcat(bounds_string + strlen(bounds_string), ")\0");
+
+    // Transform to PyObject Unicode
+    str_obj = PyUnicode_FromString(bounds_string);
+    return str_obj;
+}
+
+static PyObject *
 ProcSet_str(ProcSetObject *self)
 { 
     //The object we're going to return;
@@ -288,7 +325,7 @@ static PyTypeObject ProcSetType = {
     .tp_doc = "C implementation of the ProcSet datatype",   // __doc__
     .tp_basicsize = sizeof(ProcSetObject),                  // size of the struct
     .tp_itemsize = 0,                                       // additional size values for dynamic objects
-/*     .tp_repr = (reprfunc) ProcSet_repr,*/                     // __repr__
+    .tp_repr = (reprfunc) ProcSet_repr,                     // __repr__
     .tp_str = (reprfunc) ProcSet_str,                       // __str__
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,   // flags, basetype is optional   
     .tp_new = (newfunc) ProcSet_new,                        // __new__
