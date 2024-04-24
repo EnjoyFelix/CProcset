@@ -26,6 +26,45 @@ ProcSet_intervals(ProcSetObject *self){
     return PyObject_GetIter((PyObject*) self);
 }
 
+// returns a shallow copy of the object
+PyObject * 
+ProcSet_copy(ProcSetObject *self){
+
+    // ProcSet object type
+    PyTypeObject* type = Py_TYPE((PyObject *) self);            //pbbly not a ref to a new object
+
+    // another object
+    ProcSetObject* copy = (ProcSetObject *) type->tp_alloc(type, 0);
+
+    // memory allocation time 
+    copy->nb_boundary = (Py_ssize_t *) PyMem_Malloc(sizeof(Py_ssize_t));
+    if (!self->nb_boundary){
+        PyErr_NoMemory();
+        Py_DECREF((PyObject* )copy);
+        return NULL;
+    }
+
+    // we copy the nbr of boundaries
+    *(copy->nb_boundary) = *(self->nb_boundary);
+
+    // we allocate memory for the 
+    copy->_boundaries = (pset_boundary_t *) PyMem_Malloc( *(copy->nb_boundary) * sizeof(pset_boundary_t));
+    if (!self->_boundaries){
+        PyMem_Free(copy->nb_boundary);      // we free the memory allocated for the nbr of boundaries
+        Py_DECREF((PyObject* )copy);        // we allow the copy to be gc'ed
+
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    // we copy every value in the boundary array
+    for (int i = 0; i < *(self->nb_boundary); i++){
+        copy->_boundaries[i] = self->_boundaries[i];
+    }
+
+    return (PyObject *) copy;
+}
+
 // returns the lower bound of the first interval
 static PyObject*
 ProcSet_min(ProcSetObject *self){
@@ -95,10 +134,10 @@ ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(k
 // init: initialization function, called after new
 // initializes the procset object, this function should only receive sequenceable args / intergers in increasing order. 
 static int
-ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *kwds)
+ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
 {
     // if no args were given:
-    if (!args || kwds){
+    if (!args){
         //return 0 as this can happen in the py implementation
         return 0;
     }
@@ -365,8 +404,11 @@ static PyMethodDef ProcSet_methods[] = {
     "The convex hull of a non-empty ProcSet is the contiguous ProcSet made\n"
     "of the smallest unique interval containing all intervals from the\n"
     "non-empty ProcSet."},  */
-    {"intervals", (PyCFunction) ProcSet_intervals, METH_NOARGS, "Return an iterator over the intervals of the ProcSet in increasing order."},
-    {"count", (PyCFunction) ProcSet_count, METH_NOARGS, "Return the number of disjoint intervals in the ProcSet."},
+    {"copy", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
+    {"__copy__", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
+    {"__deepcopy__", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new copy of the ProcSet."},
+    {"intervals", (PyCFunction) ProcSet_intervals, METH_NOARGS, "Returns an iterator over the intervals of the ProcSet in increasing order."},
+    {"count", (PyCFunction) ProcSet_count, METH_NOARGS, "Returns the number of disjoint intervals in the ProcSet."},
     {"iscontiguous", (PyCFunction) ProcSet_iscontiguous, METH_NOARGS, "Returns ``True`` if the ProcSet is made of a unique interval."},
     {NULL, NULL, 0, NULL}
 };
