@@ -390,6 +390,7 @@ PySequenceMethods ProcSequenceMethods = {
     0,                                          // ?
 };
 
+// __eq__ and __ne__
 static int
 ProcSet_eq(ProcSetObject* self, ProcSetObject* other){
     // easiest case: they don't have the same number of element -> not equal
@@ -414,6 +415,7 @@ static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int 
         return Py_False;
     }
 
+    //explicit cast
     ProcSetObject* other = (ProcSetObject*) _other;
 
     switch (operation){
@@ -443,6 +445,12 @@ static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int 
     }
 
     return NULL;
+}
+
+// bool
+static int
+ProcSet_bool(ProcSetObject* self){
+    return *(self->nb_boundary) != 0;
 }
 
 // methods
