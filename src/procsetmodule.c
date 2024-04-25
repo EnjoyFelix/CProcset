@@ -10,25 +10,25 @@
 
 //returns the number of intervals in the set
 PyObject *
-ProcSet_count(ProcSetObject *self) {
+ProcSet_count(ProcSetObject *self, void * Py_UNUSED(args)) {
     return PyLong_FromLong((long) (*(self->nb_boundary)/2));
 }
 
 //returns true if the number of nb_boundaries == 2 (which means there is only one contiguous interval in the set)
 PyObject *
-ProcSet_iscontiguous(ProcSetObject *self){
+ProcSet_iscontiguous(ProcSetObject *self, void * Py_UNUSED(args)){
     return (*(self->nb_boundary) == 2 ? Py_True : Py_False);
 }
 
 // returns an iterator
 PyObject *
-ProcSet_intervals(ProcSetObject *self){
+ProcSet_intervals(ProcSetObject *self, void * Py_UNUSED(args)){
     return PyObject_GetIter((PyObject*) self);
 }
 
 // returns a shallow copy of the object
 PyObject * 
-ProcSet_copy(ProcSetObject *self){
+ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
 
     // ProcSet object type
     PyTypeObject* type = Py_TYPE((PyObject *) self);            //pbbly not a ref to a new object
@@ -67,7 +67,7 @@ ProcSet_copy(ProcSetObject *self){
 
 // returns the lower bound of the first interval
 static PyObject*
-ProcSet_min(ProcSetObject *self){
+ProcSet_min(ProcSetObject *self, void* Py_UNUSED(v)){
     // if null
     if (!self || !self->_boundaries){
         //TODO: set an exception
@@ -80,7 +80,7 @@ ProcSet_min(ProcSetObject *self){
 
 // returns the upper bound of the last interval
 static PyObject*
-ProcSet_max(ProcSetObject *self){
+ProcSet_max(ProcSetObject *self, void * Py_UNUSED(v)){
     // if null
     if (!self || !self->_boundaries){
         //TODO: set an exception
@@ -362,7 +362,7 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
     pset_boundary_t value = (pset_boundary_t) PyLong_AsUnsignedLong(val);
 
     // easiest case: the value is greater than the last proc or lower than the first proc
-    if (!self->_boundaries || value < *(self->_boundaries) | value >= self->_boundaries[*(self->nb_boundary) - 1]){
+    if (!self->_boundaries || value < *(self->_boundaries) || value >= self->_boundaries[*(self->nb_boundary) - 1]){
         return 0;
     }
 
