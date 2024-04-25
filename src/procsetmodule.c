@@ -390,6 +390,61 @@ PySequenceMethods ProcSequenceMethods = {
     0,                                          // ?
 };
 
+static int
+ProcSet_eq(ProcSetObject* self, ProcSetObject* other){
+    // easiest case: they don't have the same number of element -> not equal
+    if (*(self->nb_boundary) != *(other->nb_boundary)){
+        return false;
+    }
+
+    // we go through the list and check the equality 
+    Py_ssize_t i = 0;
+    while (i < *(self->nb_boundary) && self->_boundaries[i] == other->_boundaries[i]){
+        i++;
+    }
+
+    // the intervals are the same if we didn't stop
+    return i == *(self->nb_boundary);
+}
+
+// richcompare function
+static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int operation){
+    //we compare the types:
+    if (!Py_IS_TYPE(_other, Py_TYPE((PyObject*)self))){
+        return Py_False;
+    }
+
+    ProcSetObject* other = (ProcSetObject*) _other;
+
+    switch (operation){
+        case Py_LT:{ // <
+            return Py_False;
+        };
+
+        case Py_LE:{ // <=
+            return Py_False;
+        };
+     
+        case Py_EQ:{ // ==
+            return PyBool_FromLong(ProcSet_eq(self, other));
+        };
+
+        case Py_NE:{ // !=
+            return PyBool_FromLong(!ProcSet_eq(self, other));
+        };
+
+        case Py_GT:{ // >
+            return Py_False;
+        };
+
+        case Py_GE:{ // >=
+            return Py_False;
+        };
+    }
+
+    return NULL;
+}
+
 // methods
 static PyMethodDef ProcSet_methods[] = {
 /*     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
@@ -430,6 +485,7 @@ static PyTypeObject ProcSetType = {
     .tp_methods = ProcSet_methods,                          // the list of defined methods for this object
     .tp_getset = ProcSet_getset,                            // the list of defined getters and setters
     .tp_as_sequence = &ProcSequenceMethods,                 // pointer to the sequence object
+    .tp_richcompare = (richcmpfunc) ProcSet_richcompare,    // __le__, __eq__...
 };
 
 // basic Module definition
