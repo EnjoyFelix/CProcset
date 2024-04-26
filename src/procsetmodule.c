@@ -65,6 +65,100 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
     return (PyObject *) copy;
 }
 
+// MERGE (Core function)
+static ProcSetObject*
+merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
+    //the potential max nbr of intervals
+    Py_ssize_t maxBound = (long) lpset->nb_boundary + (long) rpset->nb_boundary;
+
+    //the resulting
+    ProcSetObject* result = ProcSet_new(&ProcSetType, NULL, NULL);              //TODO: CHECK IF I HAVE TO PY_REF this one
+    result->nb_boundary = (Py_ssize_t *) PyMem_Malloc(sizeof(Py_ssize_t));
+
+    if (!result->nb_boundary){
+        Py_XDECREF((PyObject*) result);     //if that one failed, the other one will too
+        return NULL;
+    }
+
+    //we take more than we should, that's ok
+    result->_boundaries = (Py_ssize_t *) PyMem_Malloc(sizeof(pset_boundary_t) * maxBound);
+    if (!result->_boundaries){
+        PyMem_Free(result->nb_boundary);            //not really important since Py_DECREF will take care of it anyway                 
+        Py_DECREF((PyObject*) result);
+        return NULL;
+    }
+
+    bool side = false;                          //false if lower bound, true if upper
+
+    pset_boundary_t sentinel = MAX_BOUND_VALUE;
+
+    Py_ssize_t lbound_index = 0, rbound_index = 0, index = 0;
+    pset_boundary_t lhead = lpset->_boundaries[lbound_index];
+    pset_boundary_t rhead = rpset->_boundaries[rbound_index];
+
+    //is this list on an upper bound or on a lower bound ?
+    bool lside = lbound_index % 2 != 0;
+    bool rside = rbound_index % 2 != 0;
+
+    //min of the two intervals 
+    pset_boundary_t head = (lhead < rhead) ? lhead : rhead;
+
+    while (head < sentinel) {
+        bool inleft = (head < lhead) == lside;
+        bool inright = (head < rhead) == rside;
+
+        bool keep = operator(inleft, inright);
+
+        //Black magic implementation
+        if (keep ^ side) {
+            result->_boundaries[*(result->nb_boundary)] = head;
+            *(result->nb_boundary)++;
+
+            side = !side;       // we chose a bound for this side
+            index++;
+        }
+
+        if (head == lhead) {
+            lbound_index++;
+
+            if (lbound_index < lpset->nb_boundary) {
+                lside = lbound_index%2 != 0;
+                lhead = lpset->_boundaries[lbound_index];
+            } else { // sentinel
+                lhead = sentinel;
+                lside = false;
+            }
+        }
+        if (head == rhead) {
+            rbound_index++;
+            if (rbound_index < rpset->nb_boundary) {
+                rside = rbound_index%2 != 0;
+                rhead = rpset->_boundaries[rbound_index];
+            } else { // sentinel
+                rhead = sentinel;
+                rside = false;
+            }
+        }
+
+        head = (lhead < rhead) ? lhead : rhead;               
+    }
+
+    // if we had allocated the right amount of memory
+    if (*(result->nb_boundary) == maxBound){
+        return result;
+    }
+
+    // we free the excess memory
+    pset_boundary_t* bounds = PyMem_Realloc(result->_boundaries, *(result->nb_boundary) + 1 * sizeof(pset_boundary_t));
+
+    // bounds will be null if realloc failed (yet the previous pointer will remain valid, se we have to check)
+    if (bounds){
+        result->_boundaries = bounds;
+    }
+
+    return result;
+};
+
 // returns the lower bound of the first interval
 static PyObject*
 ProcSet_min(ProcSetObject *self, void* Py_UNUSED(v)){
