@@ -11,13 +11,13 @@
 //returns the number of intervals in the set
 PyObject *
 ProcSet_count(ProcSetObject *self, void * Py_UNUSED(args)) {
-    return PyLong_FromLong((long) (*(self->nb_boundary)/2));
+    return PyLong_FromLong((long) (self->nb_boundary/2));
 }
 
 //returns true if the number of nb_boundaries == 2 (which means there is only one contiguous interval in the set)
 PyObject *
 ProcSet_iscontiguous(ProcSetObject *self, void * Py_UNUSED(args)){
-    return (*(self->nb_boundary) == 2 ? Py_True : Py_False);
+    return (self->nb_boundary == 2 ? Py_True : Py_False);
 }
 
 // returns an iterator
@@ -36,21 +36,12 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
     // another object
     ProcSetObject* copy = (ProcSetObject *) type->tp_alloc(type, 0);
 
-    // memory allocation time 
-    copy->nb_boundary = (Py_ssize_t *) PyMem_Malloc(sizeof(Py_ssize_t));
-    if (!self->nb_boundary){
-        PyErr_NoMemory();
-        Py_DECREF((PyObject* )copy);
-        return NULL;
-    }
-
     // we copy the nbr of boundaries
-    *(copy->nb_boundary) = *(self->nb_boundary);
+    copy->nb_boundary = self->nb_boundary;
 
     // we allocate memory for the 
-    copy->_boundaries = (pset_boundary_t *) PyMem_Malloc( *(copy->nb_boundary) * sizeof(pset_boundary_t));
+    copy->_boundaries = (pset_boundary_t *) PyMem_Malloc( copy->nb_boundary * sizeof(pset_boundary_t));
     if (!self->_boundaries){
-        PyMem_Free(copy->nb_boundary);      // we free the memory allocated for the nbr of boundaries
         Py_DECREF((PyObject* )copy);        // we allow the copy to be gc'ed
 
         PyErr_NoMemory();
@@ -58,7 +49,7 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
     }
 
     // we copy every value in the boundary array
-    for (int i = 0; i < *(self->nb_boundary); i++){
+    for (int i = 0; i < self->nb_boundary; i++){
         copy->_boundaries[i] = self->_boundaries[i];
     }
 
@@ -71,25 +62,15 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
     PyTypeObject * psettype = ((PyObject*) lpset)->ob_type;
 
     //the potential max nbr of intervals
-    Py_ssize_t maxBound = *(lpset->nb_boundary) + *(rpset->nb_boundary);
+    Py_ssize_t maxBound = lpset->nb_boundary + rpset->nb_boundary;
 
     //the resulting
     ProcSetObject* result = (ProcSetObject *) psettype->tp_new(psettype, NULL, NULL);
-    result->nb_boundary = (Py_ssize_t *) PyMem_Malloc(sizeof(Py_ssize_t));
-
-    if (!result->nb_boundary){
-        PyErr_NoMemory();
-        Py_XDECREF((PyObject*) result);     //if that one failed, the other one will too
-        return NULL;
-    }
-
-    *(result->nb_boundary) = 0;
 
     //we take more than we should, that's ok
     result->_boundaries = (pset_boundary_t *) PyMem_Malloc(sizeof(pset_boundary_t) * maxBound);
     if (!result->_boundaries){
-        PyErr_NoMemory();
-        PyMem_Free(result->nb_boundary);            //not really important since Py_DECREF will take care of it anyway                 
+        PyErr_NoMemory();                 
         Py_DECREF((PyObject*) result);
         return NULL;
     }
@@ -117,8 +98,8 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
 
         //Black magic implementation
         if (keep ^ side) {
-            result->_boundaries[*(result->nb_boundary)] = head;
-            *(result->nb_boundary) +=1;
+            result->_boundaries[result->nb_boundary] = head;
+            result->nb_boundary +=1;
 
             side = !side;       // we chose a bound for this side
         }
@@ -126,7 +107,7 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
         if (head == lhead) {
             lbound_index++;
 
-            if (lbound_index < *(lpset->nb_boundary)) {
+            if (lbound_index < lpset->nb_boundary) {
                 lside = lbound_index%2 != 0;
                 lhead = lpset->_boundaries[lbound_index];
             } else { // sentinel
@@ -136,7 +117,7 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
         }
         if (head == rhead) {
             rbound_index++;
-            if (rbound_index < *(rpset->nb_boundary)) {
+            if (rbound_index < rpset->nb_boundary) {
                 rside = rbound_index%2 != 0;
                 rhead = rpset->_boundaries[rbound_index];
             } else { // sentinel
@@ -149,12 +130,12 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
     }
 
     // if we had allocated the right amount of memory
-    if (*(result->nb_boundary) == maxBound){
+    if (result->nb_boundary == maxBound){
         return (PyObject *) result;
     }
 
     // we free the excess memory
-    pset_boundary_t* bounds = PyMem_Realloc(result->_boundaries, (*(result->nb_boundary) + 1) * sizeof(pset_boundary_t));
+    pset_boundary_t* bounds = PyMem_Realloc(result->_boundaries, (result->nb_boundary + 1) * sizeof(pset_boundary_t));
 
     // bounds will be null if realloc failed (yet the previous pointer will remain valid, se we have to check)
     if (bounds){
@@ -204,7 +185,7 @@ ProcSet_max(ProcSetObject *self, void * Py_UNUSED(v)){
     }
 
     //returns the first element 
-    return PyLong_FromLong(self->_boundaries[*(self->nb_boundary) -1] -1 );    //-1 to account for the half opened
+    return PyLong_FromLong(self->_boundaries[self->nb_boundary -1] -1 );    //-1 to account for the half opened
 }
 
 // list of the getters and setters
@@ -225,9 +206,6 @@ ProcSet_dealloc(ProcSetObject *self)
     // We free the memory allocated for the boundaries
     // using the integrated py function
     PyMem_Free(self->_boundaries);
-
-    // same for the nb of boundaries
-    PyMem_Free(self->nb_boundary);
 
     // we call the free function of the type
     Py_TYPE((PyObject *)self)->tp_free((PyObject *) self);
@@ -265,11 +243,6 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
         return -1;
     }
 
-    self->nb_boundary = (Py_ssize_t *) PyMem_Malloc(sizeof(Py_ssize_t));
-    if (!self->nb_boundary){
-        PyErr_NoMemory();
-        return -1;
-    }
 
     // an iterator on args (args is a list of objects)
     PyObject * iterator = PyObject_GetIter(args);
@@ -330,7 +303,7 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
     };  
 
     Py_DECREF(iterator);                    // we free the now useless iterator
-    *(self->nb_boundary) = 0 | (PySequence_Size(args) * 2);
+    self->nb_boundary = PySequence_Size(args) * 2;
     return 0;
 }
 
@@ -345,7 +318,7 @@ ProcSet_repr(ProcSetObject *self){
 
     int i = 0;
     // for every pair of boundaries
-    while(i < *(self->nb_boundary)){
+    while(i < self->nb_boundary){
         if (i != 0){
             strcat(bounds_string + strlen(bounds_string), ", ");
         };
@@ -391,7 +364,7 @@ ProcSet_str(ProcSetObject *self)
 
     int i = 0;
     // for every pair of boundaries
-    while(i < *(self->nb_boundary)){
+    while(i < self->nb_boundary){
         // a and b -> [a, b[
         pset_boundary_t a = self->_boundaries[i];
         pset_boundary_t b = (self->_boundaries[i+1]) -1; //b -1 as the interval is half opened 
@@ -430,7 +403,7 @@ ProcSequence_length(ProcSetObject* self){
     Py_ssize_t res = 0;
 
     // pour chaque interval
-    for (int i = 0; i < *(self->nb_boundary); i+=2){
+    for (int i = 0; i < self->nb_boundary; i+=2){
         //On ajoute sa taille au résultat
         //La taille n'a pas besoin de +1 car intervals semi ouverts
         res += self->_boundaries[i+1] - self->_boundaries[i]; 
@@ -478,7 +451,7 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
     pset_boundary_t value = (pset_boundary_t) PyLong_AsUnsignedLong(val);
 
     // easiest case: the value is greater than the last proc or lower than the first proc
-    if (!self->_boundaries || value < *(self->_boundaries) || value >= self->_boundaries[*(self->nb_boundary) - 1]){
+    if (!self->_boundaries || value < *(self->_boundaries) || value >= self->_boundaries[self->nb_boundary - 1]){
         return 0;
     }
 
@@ -486,7 +459,7 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
     int itv = 0;
 
     //while we still have intervals and the value is lower than the lower bound of the current interval
-    while (itv < *(self->nb_boundary) && self->_boundaries[itv] < value){
+    while (itv < self->nb_boundary && self->_boundaries[itv] < value){
         itv += 2;
     }
     return self->_boundaries[itv+1] > value;        // the value is in the set if it's lower than the upper bound
@@ -510,18 +483,18 @@ PySequenceMethods ProcSequenceMethods = {
 static int
 ProcSet_eq(ProcSetObject* self, ProcSetObject* other){
     // easiest case: they don't have the same number of element -> not equal
-    if (*(self->nb_boundary) != *(other->nb_boundary)){
+    if (self->nb_boundary != other->nb_boundary){
         return false;
     }
 
     // we go through the list and check the equality 
     Py_ssize_t i = 0;
-    while (i < *(self->nb_boundary) && self->_boundaries[i] == other->_boundaries[i]){
+    while (i < self->nb_boundary && self->_boundaries[i] == other->_boundaries[i]){
         i++;
     }
 
     // the intervals are the same if we didn't stop
-    return i == *(self->nb_boundary);
+    return i == self->nb_boundary;
 }
 
 // richcompare function
@@ -566,7 +539,7 @@ static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int 
 /* // bool
 static int
 ProcSet_bool(ProcSetObject* self){
-    return *(self->nb_boundary) != 0;
+    return self->nb_boundary != 0;
 } */
 
 // methods

@@ -18,7 +18,7 @@ typedef struct {
 
     // pointer to the Number of boundaries, (2x nbr of intervals)
     // --> has to be a pointer because of shallow copies
-    Py_ssize_t * nb_boundary;
+    Py_ssize_t nb_boundary;
 } ProcSetObject;
 
 
