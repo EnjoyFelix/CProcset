@@ -66,23 +66,29 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
 }
 
 // MERGE (Core function)
-static ProcSetObject*
+static PyObject*
 merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
+    PyTypeObject * psettype = ((PyObject*) lpset)->ob_type;
+
     //the potential max nbr of intervals
-    Py_ssize_t maxBound = (long) lpset->nb_boundary + (long) rpset->nb_boundary;
+    Py_ssize_t maxBound = *(lpset->nb_boundary) + *(rpset->nb_boundary);
 
     //the resulting
-    ProcSetObject* result = ProcSet_new(&ProcSetType, NULL, NULL);              //TODO: CHECK IF I HAVE TO PY_REF this one
+    ProcSetObject* result = (ProcSetObject *) psettype->tp_new(psettype, NULL, NULL);
     result->nb_boundary = (Py_ssize_t *) PyMem_Malloc(sizeof(Py_ssize_t));
 
     if (!result->nb_boundary){
+        PyErr_NoMemory();
         Py_XDECREF((PyObject*) result);     //if that one failed, the other one will too
         return NULL;
     }
 
+    *(result->nb_boundary) = 0;
+
     //we take more than we should, that's ok
-    result->_boundaries = (Py_ssize_t *) PyMem_Malloc(sizeof(pset_boundary_t) * maxBound);
+    result->_boundaries = (pset_boundary_t *) PyMem_Malloc(sizeof(pset_boundary_t) * maxBound);
     if (!result->_boundaries){
+        PyErr_NoMemory();
         PyMem_Free(result->nb_boundary);            //not really important since Py_DECREF will take care of it anyway                 
         Py_DECREF((PyObject*) result);
         return NULL;
@@ -90,9 +96,9 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
 
     bool side = false;                          //false if lower bound, true if upper
 
-    pset_boundary_t sentinel = MAX_BOUND_VALUE;
+    pset_boundary_t sentinel = UINT32_MAX;
 
-    Py_ssize_t lbound_index = 0, rbound_index = 0, index = 0;
+    Py_ssize_t lbound_index = 0, rbound_index = 0;
     pset_boundary_t lhead = lpset->_boundaries[lbound_index];
     pset_boundary_t rhead = rpset->_boundaries[rbound_index];
 
@@ -112,16 +118,15 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
         //Black magic implementation
         if (keep ^ side) {
             result->_boundaries[*(result->nb_boundary)] = head;
-            *(result->nb_boundary)++;
+            *(result->nb_boundary) +=1;
 
             side = !side;       // we chose a bound for this side
-            index++;
         }
 
         if (head == lhead) {
             lbound_index++;
 
-            if (lbound_index < lpset->nb_boundary) {
+            if (lbound_index < *(lpset->nb_boundary)) {
                 lside = lbound_index%2 != 0;
                 lhead = lpset->_boundaries[lbound_index];
             } else { // sentinel
@@ -131,7 +136,7 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
         }
         if (head == rhead) {
             rbound_index++;
-            if (rbound_index < rpset->nb_boundary) {
+            if (rbound_index < *(rpset->nb_boundary)) {
                 rside = rbound_index%2 != 0;
                 rhead = rpset->_boundaries[rbound_index];
             } else { // sentinel
@@ -145,19 +150,36 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
 
     // if we had allocated the right amount of memory
     if (*(result->nb_boundary) == maxBound){
-        return result;
+        return (PyObject *) result;
     }
 
     // we free the excess memory
-    pset_boundary_t* bounds = PyMem_Realloc(result->_boundaries, *(result->nb_boundary) + 1 * sizeof(pset_boundary_t));
+    pset_boundary_t* bounds = PyMem_Realloc(result->_boundaries, (*(result->nb_boundary) + 1) * sizeof(pset_boundary_t));
 
     // bounds will be null if realloc failed (yet the previous pointer will remain valid, se we have to check)
     if (bounds){
         result->_boundaries = bounds;
     }
 
-    return result;
-};
+    return (PyObject *) result;
+}
+
+static PyObject *
+ProcSet_union(ProcSetObject *self, PyObject *args)
+{
+    ProcSetObject *other;
+
+    // we try to parse another procset from the args
+    if (!PyArg_ParseTuple(args, "O!", ((PyObject *) self)->ob_type , &other)) {
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+
+    // we call merge on the two objects
+    return merge(self, other, bitwiseOr);
+}
+
 
 // returns the lower bound of the first interval
 static PyObject*
@@ -541,16 +563,16 @@ static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int 
     return NULL;
 }
 
-// bool
+/* // bool
 static int
 ProcSet_bool(ProcSetObject* self){
     return *(self->nb_boundary) != 0;
-}
+} */
 
 // methods
 static PyMethodDef ProcSet_methods[] = {
-/*     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
-    {"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
+    {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
+    /*{"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
     {"difference", (PyCFunction) ProcSet_difference, METH_VARARGS, "Function that perform the assemblist difference operation and return a new ProcSet"},
     {"symmetric_difference", (PyCFunction) ProcSet_symmetricDifference, METH_VARARGS, "Function that perform the assemblist symmetric difference operation and return a new ProcSet"},
     {"aggregate", (PyCFunction) ProcSet_aggregate, METH_NOARGS, 
