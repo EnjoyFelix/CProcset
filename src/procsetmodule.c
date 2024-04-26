@@ -161,6 +161,60 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
     return merge(self, other, bitwiseOr);
 }
 
+static PyObject *
+ProcSet_intersection(ProcSetObject *self, PyObject *args)
+{
+
+    ProcSetObject *other;
+
+    // we try to parse another procset from the args
+    if (!PyArg_ParseTuple(args, "O!", ((PyObject *) self)->ob_type, &other)) {
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    // we call merge on the two objects
+    return merge(self, other, bitwiseAnd);
+
+}
+
+static PyObject *
+ProcSet_difference(ProcSetObject *self, PyObject *args)
+{
+
+    ProcSetObject *other;
+
+    // we try to parse another procset from the args
+    if (!PyArg_ParseTuple(args, "O!", ((PyObject *) self)->ob_type, &other)) {
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+
+    // Py_ssize_t neededSize = self->nb_boundary;
+
+    // we call merge on the two objects
+    return merge(self, other, bitwiseSubtraction);
+
+}
+
+static PyObject *
+ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
+{
+
+    ProcSetObject *other;
+
+    // we try to parse another procset from the args
+    if (!PyArg_ParseTuple(args, "O!", ((PyObject *) self)->ob_type, &other)) {
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    // we call merge on the two objects
+    return merge(self, other, bitwiseXor);
+
+}
+
 
 // returns the lower bound of the first interval
 static PyObject*
@@ -545,10 +599,10 @@ ProcSet_bool(ProcSetObject* self){
 // methods
 static PyMethodDef ProcSet_methods[] = {
     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
-    /*{"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
+    {"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
     {"difference", (PyCFunction) ProcSet_difference, METH_VARARGS, "Function that perform the assemblist difference operation and return a new ProcSet"},
     {"symmetric_difference", (PyCFunction) ProcSet_symmetricDifference, METH_VARARGS, "Function that perform the assemblist symmetric difference operation and return a new ProcSet"},
-    {"aggregate", (PyCFunction) ProcSet_aggregate, METH_NOARGS, 
+    /*{"aggregate", (PyCFunction) ProcSet_aggregate, METH_NOARGS, 
     "Return a new ProcSet that is the convex hull of the ProcSet.\n"
     "\n"
     "The convex hull of an empty ProcSet is the empty ProcSet.\n"
