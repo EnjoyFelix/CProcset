@@ -59,6 +59,9 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
     return (PyObject *) copy;
 }
 
+
+
+
 // MERGE (Core function)
 static PyObject*
 merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
@@ -147,6 +150,112 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
 
     return (PyObject *) result;
 }
+
+// __bool__
+static int
+ProcSet_bool(ProcSetObject* self){
+    return self->nb_boundary != 0;
+}
+
+// __or__ et |
+static PyObject*
+ProcSet_or(ProcSetObject* self, PyObject* other){
+
+    // other needs to be a procset, self will always be
+    if (!Py_IS_TYPE(other, Py_TYPE(self))){
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    // we call merge on the two objects and return the result
+    return merge(self, (ProcSetObject *) other, bitwiseOr);
+}
+
+// __and__ et &
+static PyObject*
+ProcSet_and(ProcSetObject* self, ProcSetObject* other){
+
+    // other needs to be a procset, self will always be
+    if (!Py_IS_TYPE(other, Py_TYPE(self))){
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    // we call merge on the two objects and return the result
+    return merge(self, other, bitwiseAnd);
+}
+
+// __sub__ et -
+static PyObject*
+ProcSet_sub(ProcSetObject* self, ProcSetObject* other){
+
+    // other needs to be a procset, self will always be
+    if (!Py_IS_TYPE(other, Py_TYPE(self))){
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    // we call merge on the two objects and return the result
+    return merge(self, other, bitwiseSubtraction);
+}
+
+// __xor__ et ^
+static PyObject*
+ProcSet_xor(ProcSetObject* self, ProcSetObject* other){
+
+    // other needs to be a procset, self will always be
+    if (!Py_IS_TYPE(other, Py_TYPE(self))){
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    // we call merge on the two objects and return the result
+    return merge(self, other, bitwiseXor);
+}
+
+// repertoires des methodes 
+static PyNumberMethods ProcSet_number_methods = {
+    0, // binaryfunc nb_add;
+    (binaryfunc) ProcSet_sub,
+    0, // binaryfunc nb_multiply;
+    0, // binaryfunc nb_remainder;
+    0, // binaryfunc nb_divmod;
+    0, // ternaryfunc nb_power;
+    0, // unaryfunc nb_negative;
+    0, // unaryfunc nb_positive;
+    0, // unaryfunc nb_absolute;
+    (inquiry) ProcSet_bool,
+    0, // unaryfunc nb_invert;
+    0, // binaryfunc nb_lshift;
+    0, // binaryfunc nb_rshift;
+    (binaryfunc) ProcSet_and,
+    (binaryfunc) ProcSet_xor,
+    (binaryfunc) ProcSet_or,
+    0, // unaryfunc nb_int;
+    0, // void *nb_reserved;
+    0, // unaryfunc nb_float;
+
+    0, // binaryfunc nb_inplace_add;
+0, //(binaryfunc) nb_inplace_subtract,
+    0, // binaryfunc nb_inplace_multiply;
+    0, // binaryfunc nb_inplace_remainder;
+    0, // ternaryfunc nb_inplace_power;
+    0, // binaryfunc nb_inplace_lshift;
+    0, // binaryfunc nb_inplace_rshift;
+0, //(binaryfunc) nb_inplace_and,
+0, //(binaryfunc) nb_inplace_xor,
+0, //(binaryfunc) nb_inplace_or,
+
+    0, // binaryfunc nb_floor_divide;
+    0, // binaryfunc nb_true_divide;
+    0, // binaryfunc nb_inplace_floor_divide;
+    0, // binaryfunc nb_inplace_true_divide;
+
+    0, // unaryfunc nb_index;
+
+    0, // binaryfunc nb_matrix_multiply;
+    0, // binaryfunc nb_inplace_matrix_multiply;
+};
 
 static PyObject *
 ProcSet_union(ProcSetObject *self, PyObject *args)
@@ -291,6 +400,9 @@ ProcSet_update_symmetricDifference(ProcSetObject *self, PyObject *args){
     return _update_core(self, args, ProcSet_symmetricDifference);
 }
 
+
+
+
 // returns the lower bound of the first interval
 static PyObject*
 ProcSet_min(ProcSetObject *self, void* Py_UNUSED(v)){
@@ -324,6 +436,9 @@ static PyGetSetDef ProcSet_getset[] = {
     {"max", (getter) ProcSet_max, NULL ,"The last processor in the ProcSet (in increasing order).", NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
+
+
+
 
 // Deallocation method
 static void 
@@ -434,6 +549,8 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
     return 0;
 }
 
+
+
 // __repr__
 static PyObject *
 ProcSet_repr(ProcSetObject *self){
@@ -441,7 +558,7 @@ ProcSet_repr(ProcSetObject *self){
     PyObject *str_obj = NULL;
 
     // an empty string that will be filled with "ProcSet((a,b), c, (d,e))"
-    char bounds_string[STR_BUFFER_SIZE] = "Procset(";
+    char bounds_string[STR_BUFFER_SIZE] = "ProcSet(";
 
     int i = 0;
     // for every pair of boundaries
@@ -516,6 +633,8 @@ ProcSet_str(ProcSetObject *self)
     PyMem_Free(bounds_string);
     return str_obj;
 }
+
+
 
 // __len__
 static Py_ssize_t
@@ -606,6 +725,8 @@ PySequenceMethods ProcSequenceMethods = {
     0,                                          // ?
 };
 
+
+
 // __eq__ and __ne__
 static int
 ProcSet_eq(ProcSetObject* self, ProcSetObject* other){
@@ -663,12 +784,6 @@ static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int 
     return NULL;
 }
 
-/* // bool
-static int
-ProcSet_bool(ProcSetObject* self){
-    return self->nb_boundary != 0;
-} */
-
 // methods
 static PyMethodDef ProcSet_methods[] = {
     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
@@ -716,6 +831,7 @@ static PyTypeObject ProcSetType = {
     .tp_getset = ProcSet_getset,                            // the list of defined getters and setters
     .tp_as_sequence = &ProcSequenceMethods,                 // pointer to the sequence object
     .tp_richcompare = (richcmpfunc) ProcSet_richcompare,    // __le__, __eq__...
+    .tp_as_number = &ProcSet_number_methods,                // __and__, __or__ ...
 };
 
 // basic Module definition
