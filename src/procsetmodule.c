@@ -199,6 +199,54 @@ ProcSet_difference(ProcSetObject *self, PyObject *args)
 }
 
 static PyObject *
+ProcSet_update_difference(ProcSetObject *self, PyObject *args){
+    
+    // the previous function does the heavy lifting for that one
+    ProcSetObject * result = (ProcSetObject *) ProcSet_difference(self, args);
+
+    // if an error occured
+    if (!result){
+        return NULL;         // we just break, no need to tĥrow anything since the previous function call already does that
+    }
+
+    // if our list is smaller than the result's list
+    if (self->nb_boundary < result->nb_boundary){
+        pset_boundary_t * temp = PyMem_Realloc(self->_boundaries, result->nb_boundary * sizeof(pset_boundary_t));
+
+        if (!temp){
+            //we dont check for previous py errors since they would have been caught in the "if !result"
+            PyErr_NoMemory();   // return error
+            Py_DECREF(result);  // allow result to be gc'ed
+            return NULL;
+        }
+
+        self->_boundaries = temp;        
+    } 
+    // if our list is bigger than the result's list
+    else if (self->nb_boundary > result->nb_boundary){
+        // we release the allocated memory for self->boundaries
+        // we cannot realloc here because data was surely written, so realloc will fail
+        PyMem_Free(self->_boundaries);
+
+        // we allocate the amount of memory
+        self->_boundaries = (pset_boundary_t * ) PyMem_Malloc(result->nb_boundary * sizeof(pset_boundary_t));
+    }
+    //we don't do anything if the sizes are equals
+
+    //we copy every interval;
+    for (Py_ssize_t i = 0; i < result->nb_boundary; i++){
+        self->_boundaries[i] = result->_boundaries[i];
+    }
+
+    self->nb_boundary = result->nb_boundary;
+
+    // we can't return self as is since python will think it came out of this function.
+    // this would cause a segmentation fault as every reference to self would become null.
+    // So we return result here as it's already a copy of result and can be gc'ed without any issue
+    return (PyObject *) result;
+}
+
+static PyObject *
 ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
 {
 
@@ -219,7 +267,7 @@ static PyObject *
 ProcSet_update_symmetricDifference(ProcSetObject *self, PyObject *args){
     
     // the previous function does the heavy lifting for that one
-    ProcSetObject * result = (ProcSetObject *) ProcSet_union(self, args);
+    ProcSetObject * result = (ProcSetObject *) ProcSet_symmetricDifference(self, args);
 
     // if an error occured
     if (!result){
@@ -649,6 +697,7 @@ static PyMethodDef ProcSet_methods[] = {
     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
     {"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
     {"difference", (PyCFunction) ProcSet_difference, METH_VARARGS, "Function that perform the assemblist difference operation and return a new ProcSet"},
+    {"difference_update", (PyCFunction) ProcSet_update_difference, METH_VARARGS, "Update the ProcSet, removing elements found in others."},
     {"symmetric_difference", (PyCFunction) ProcSet_symmetricDifference, METH_VARARGS, "Function that perform the assemblist symmetric difference operation and return a new ProcSet"},
     {"symmetric_difference_update", (PyCFunction) ProcSet_update_symmetricDifference, METH_VARARGS, "Update the ProcSet, keeping only elements found in either the ProcSet or *other*, but not in both."},
     /*{"aggregate", (PyCFunction) ProcSet_aggregate, METH_NOARGS, 
