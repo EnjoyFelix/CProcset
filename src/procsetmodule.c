@@ -404,7 +404,6 @@ ProcSet_update_symmetricDifference(ProcSetObject *self, PyObject *args){
 
 
 
-
 // returns the lower bound of the first interval
 static PyObject*
 ProcSet_min(ProcSetObject *self, void* Py_UNUSED(v)){
@@ -786,6 +785,52 @@ static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int 
     return NULL;
 }
 
+static int _sub_super(ProcSetObject * self, ProcSetObject * other){
+    PyObject * result = ProcSet_and(self, other);
+    if (!result){
+        return -1;
+    }
+
+    // self is a subset if every element is already in other
+    return ProcSet_eq((ProcSetObject * ) result, self);
+}
+
+// issubset
+static PyObject *
+ProcSet_issubset(ProcSetObject *self, PyObject * args){
+    //TODO: This function should be able to take list and single values as args
+
+    //the other set
+    ProcSetObject* other;
+
+    // we try to parse another procset for the list
+    if (!PyArg_ParseTuple(args, "O!", Py_TYPE(self), &other)){
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    return PyBool_FromLong(_sub_super(self, other));
+}
+
+// issubset
+static PyObject *
+ProcSet_issuperset(ProcSetObject *self, PyObject * args){
+    //TODO: This function should be able to take list and single values as args
+
+    //the other set
+    ProcSetObject* other;
+
+    // we try to parse another procset for the list
+    if (!PyArg_ParseTuple(args, "O!", Py_TYPE(self), &other)){
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    return PyBool_FromLong(_sub_super(other, self));
+}
+
+
+
 // methods
 static PyMethodDef ProcSet_methods[] = {
     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
@@ -798,6 +843,8 @@ static PyMethodDef ProcSet_methods[] = {
     {"discard", (PyCFunction) ProcSet_update_difference, METH_VARARGS, "Update the ProcSet, removing elements found in others, Alias for 'difference_update()'"},
     {"symmetric_difference", (PyCFunction) ProcSet_symmetricDifference, METH_VARARGS, "Function that perform the assemblist symmetric difference operation and return a new ProcSet"},
     {"symmetric_difference_update", (PyCFunction) ProcSet_update_symmetricDifference, METH_VARARGS, "Update the ProcSet, keeping only elements found in either the ProcSet or *other*, but not in both."},
+    {"issubset", (PyCFunction) ProcSet_issubset, METH_VARARGS, "Test whether every element in the ProcSet is in *other*"},
+    {"issuperset", (PyCFunction) ProcSet_issuperset, METH_VARARGS, "Test whether every element in *other* is in the ProcSet."},
     /*{"aggregate", (PyCFunction) ProcSet_aggregate, METH_NOARGS, 
     "Return a new ProcSet that is the convex hull of the ProcSet.\n"
     "\n"
