@@ -269,6 +269,12 @@ _update_core(ProcSetObject *self, PyObject *args, UpdateType UpdateType){
 
 // returns the intersection and updates self
 static PyObject *
+ProcSet_update(ProcSetObject *self, PyObject *args){
+    return _update_core(self, args, ProcSet_union);
+}
+
+// returns the intersection and updates self
+static PyObject *
 ProcSet_update_intersection(ProcSetObject *self, PyObject *args){
     return _update_core(self, args, ProcSet_intersection);
 }
@@ -666,11 +672,13 @@ ProcSet_bool(ProcSetObject* self){
 // methods
 static PyMethodDef ProcSet_methods[] = {
     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
+    {"update", (PyCFunction) ProcSet_update, METH_VARARGS, "Update the ProcSet, adding elements from all others."},
+    {"insert", (PyCFunction) ProcSet_update, METH_VARARGS, "Update the ProcSet, adding elements from all others, Alias for 'update()'"},
     {"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
     {"intersection_update", (PyCFunction) ProcSet_update_intersection, METH_VARARGS, "Update the ProcSet, keeping only elements found in the ProcSet and all others."},
     {"difference", (PyCFunction) ProcSet_difference, METH_VARARGS, "Function that perform the assemblist difference operation and return a new ProcSet"},
     {"difference_update", (PyCFunction) ProcSet_update_difference, METH_VARARGS, "Update the ProcSet, removing elements found in others. "},
-    {"discard", (PyCFunction) ProcSet_update_difference, METH_VARARGS, "Update the ProcSet, removing elements found in others, Alias for difference_update()"},
+    {"discard", (PyCFunction) ProcSet_update_difference, METH_VARARGS, "Update the ProcSet, removing elements found in others, Alias for 'difference_update()'"},
     {"symmetric_difference", (PyCFunction) ProcSet_symmetricDifference, METH_VARARGS, "Function that perform the assemblist symmetric difference operation and return a new ProcSet"},
     {"symmetric_difference_update", (PyCFunction) ProcSet_update_symmetricDifference, METH_VARARGS, "Update the ProcSet, keeping only elements found in either the ProcSet or *other*, but not in both."},
     /*{"aggregate", (PyCFunction) ProcSet_aggregate, METH_NOARGS, 
