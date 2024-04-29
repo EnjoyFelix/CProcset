@@ -260,6 +260,7 @@ static PyNumberMethods ProcSet_number_methods = {
 static PyObject *
 ProcSet_union(ProcSetObject *self, PyObject *args)
 {
+    //TODO : this function should allow args to be a list of procset (it should be a list of list but procset are wrappers for list and single values)
     ProcSetObject *other;
 
     // we try to parse another procset from the args
@@ -270,13 +271,13 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
 
 
     // we call merge on the two objects
-    return merge(self, other, bitwiseOr);
+    return ProcSet_or(self, (PyObject *) other);
 }
 
 static PyObject *
 ProcSet_intersection(ProcSetObject *self, PyObject *args)
 {
-
+    //TODO : this function should allow args to be a list of procset (it should be a list of list but procset are wrappers for list and single values)
     ProcSetObject *other;
 
     // we try to parse another procset from the args
@@ -286,7 +287,7 @@ ProcSet_intersection(ProcSetObject *self, PyObject *args)
     }
 
     // we call merge on the two objects
-    return merge(self, other, bitwiseAnd);
+    return ProcSet_and(self, other);
 
 }
 
@@ -294,6 +295,7 @@ static PyObject *
 ProcSet_difference(ProcSetObject *self, PyObject *args)
 {
 
+    //TODO : this function should allow args to be a list of procset (it should be a list of list but procset are wrappers for list and single values)
     ProcSetObject *other;
 
     // we try to parse another procset from the args
@@ -306,14 +308,14 @@ ProcSet_difference(ProcSetObject *self, PyObject *args)
     // Py_ssize_t neededSize = self->nb_boundary;
 
     // we call merge on the two objects
-    return merge(self, other, bitwiseSubtraction);
+    return ProcSet_sub(self, other);
 
 }
 
 static PyObject *
 ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
 {
-
+    //TODO : this function should allow args to be a list of procset (it should be a list of list but procset are wrappers for list and single values)
     ProcSetObject *other;
 
     // we try to parse another procset from the args
@@ -323,7 +325,7 @@ ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
     }
 
     // we call merge on the two objects
-    return merge(self, other, bitwiseXor);
+    return ProcSet_xor(self, other);
 
 }
 
