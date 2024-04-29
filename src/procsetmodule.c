@@ -8,6 +8,9 @@
 
 #define STR_BUFFER_SIZE 255
 
+// Update type, used by the _update_core function
+typedef PyObject * (* UpdateType) (ProcSetObject *, PyObject *);
+
 //returns the number of intervals in the set
 PyObject *
 ProcSet_count(ProcSetObject *self, void * Py_UNUSED(args)) {
@@ -199,54 +202,6 @@ ProcSet_difference(ProcSetObject *self, PyObject *args)
 }
 
 static PyObject *
-ProcSet_update_difference(ProcSetObject *self, PyObject *args){
-    
-    // the previous function does the heavy lifting for that one
-    ProcSetObject * result = (ProcSetObject *) ProcSet_difference(self, args);
-
-    // if an error occured
-    if (!result){
-        return NULL;         // we just break, no need to tĥrow anything since the previous function call already does that
-    }
-
-    // if our list is smaller than the result's list
-    if (self->nb_boundary < result->nb_boundary){
-        pset_boundary_t * temp = PyMem_Realloc(self->_boundaries, result->nb_boundary * sizeof(pset_boundary_t));
-
-        if (!temp){
-            //we dont check for previous py errors since they would have been caught in the "if !result"
-            PyErr_NoMemory();   // return error
-            Py_DECREF(result);  // allow result to be gc'ed
-            return NULL;
-        }
-
-        self->_boundaries = temp;        
-    } 
-    // if our list is bigger than the result's list
-    else if (self->nb_boundary > result->nb_boundary){
-        // we release the allocated memory for self->boundaries
-        // we cannot realloc here because data was surely written, so realloc will fail
-        PyMem_Free(self->_boundaries);
-
-        // we allocate the amount of memory
-        self->_boundaries = (pset_boundary_t * ) PyMem_Malloc(result->nb_boundary * sizeof(pset_boundary_t));
-    }
-    //we don't do anything if the sizes are equals
-
-    //we copy every interval;
-    for (Py_ssize_t i = 0; i < result->nb_boundary; i++){
-        self->_boundaries[i] = result->_boundaries[i];
-    }
-
-    self->nb_boundary = result->nb_boundary;
-
-    // we can't return self as is since python will think it came out of this function.
-    // this would cause a segmentation fault as every reference to self would become null.
-    // So we return result here as it's already a copy of result and can be gc'ed without any issue
-    return (PyObject *) result;
-}
-
-static PyObject *
 ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
 {
 
@@ -263,11 +218,12 @@ ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
 
 }
 
-static PyObject *
-ProcSet_update_symmetricDifference(ProcSetObject *self, PyObject *args){
-    
+// factorisation des fonctions d'update
+static PyObject * 
+_update_core(ProcSetObject *self, PyObject *args, UpdateType UpdateType){
+        
     // the previous function does the heavy lifting for that one
-    ProcSetObject * result = (ProcSetObject *) ProcSet_symmetricDifference(self, args);
+    ProcSetObject * result = (ProcSetObject *) UpdateType(self, args);
 
     // if an error occured
     if (!result){
@@ -311,6 +267,23 @@ ProcSet_update_symmetricDifference(ProcSetObject *self, PyObject *args){
     return (PyObject *) result;
 }
 
+// returns the intersection and updates self
+static PyObject *
+ProcSet_update_intersection(ProcSetObject *self, PyObject *args){
+    return _update_core(self, args, ProcSet_intersection);
+}
+
+// returns the difference and updates self
+static PyObject *
+ProcSet_update_difference(ProcSetObject *self, PyObject *args){
+    return _update_core(self, args, ProcSet_difference);
+}
+
+// returns the symetric difference and updates self
+static PyObject *
+ProcSet_update_symmetricDifference(ProcSetObject *self, PyObject *args){
+    return _update_core(self, args, ProcSet_symmetricDifference);
+}
 
 // returns the lower bound of the first interval
 static PyObject*
@@ -450,7 +423,6 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
         Py_DECREF(currentItem);             // we allow the current element to be gc'ed 
     };  
 
-    printf("outo\n");
     Py_DECREF(iterator);                    // we free the now useless iterator
     self->nb_boundary = PySequence_Size(args) * 2;
     return 0;
@@ -695,6 +667,7 @@ ProcSet_bool(ProcSetObject* self){
 static PyMethodDef ProcSet_methods[] = {
     {"union", (PyCFunction) ProcSet_union, METH_VARARGS, "Function that perform the assemblist union operation and return a new ProcSet"},
     {"intersection", (PyCFunction) ProcSet_intersection, METH_VARARGS, "Function that perform the assemblist intersection operation and return a new ProcSet"},
+    {"intersection_update", (PyCFunction) ProcSet_update_intersection, METH_VARARGS, "Update the ProcSet, keeping only elements found in the ProcSet and all others."},
     {"difference", (PyCFunction) ProcSet_difference, METH_VARARGS, "Function that perform the assemblist difference operation and return a new ProcSet"},
     {"difference_update", (PyCFunction) ProcSet_update_difference, METH_VARARGS, "Update the ProcSet, removing elements found in others. "},
     {"discard", (PyCFunction) ProcSet_update_difference, METH_VARARGS, "Update the ProcSet, removing elements found in others, Alias for difference_update()"},
