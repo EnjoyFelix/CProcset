@@ -746,45 +746,6 @@ ProcSet_eq(ProcSetObject* self, ProcSetObject* other){
     return i == self->nb_boundary;
 }
 
-// richcompare function
-static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int operation){
-    //we compare the types:
-    if (!Py_IS_TYPE(_other, Py_TYPE((PyObject*)self))){
-        return Py_False;
-    }
-
-    //explicit cast
-    ProcSetObject* other = (ProcSetObject*) _other;
-
-    switch (operation){
-        case Py_LT:{ // <
-            return Py_False;
-        };
-
-        case Py_LE:{ // <=
-            return Py_False;
-        };
-     
-        case Py_EQ:{ // ==
-            return PyBool_FromLong(ProcSet_eq(self, other));
-        };
-
-        case Py_NE:{ // !=
-            return PyBool_FromLong(!ProcSet_eq(self, other));
-        };
-
-        case Py_GT:{ // >
-            return Py_False;
-        };
-
-        case Py_GE:{ // >=
-            return Py_False;
-        };
-    }
-
-    return NULL;
-}
-
 static int _sub_super(ProcSetObject * self, ProcSetObject * other){
     PyObject * result = ProcSet_and(self, other);
     if (!result){
@@ -829,6 +790,48 @@ ProcSet_issuperset(ProcSetObject *self, PyObject * args){
     return PyBool_FromLong(_sub_super(other, self));
 }
 
+// richcompare function
+static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int operation){
+    //we compare the types:
+    if (!Py_IS_TYPE(_other, Py_TYPE((PyObject*)self))){
+        return Py_False;
+    }
+
+    //explicit cast
+    ProcSetObject* other = (ProcSetObject*) _other;
+
+    switch (operation){
+        case Py_LT:{ // <
+            // issubset and is different
+            return PyBool_FromLong(_sub_super(self, other) & ! ProcSet_eq(self, other));
+        };
+
+        case Py_LE:{ // <=
+            //is subset
+            return PyBool_FromLong(_sub_super(self, other));
+        };
+     
+        case Py_EQ:{ // ==
+            return PyBool_FromLong(ProcSet_eq(self, other));
+        };
+
+        case Py_NE:{ // !=
+            return PyBool_FromLong(!ProcSet_eq(self, other));
+        };
+
+        case Py_GT:{ // >
+            // is superset and is different
+            return PyBool_FromLong(_sub_super(other, self) & ! ProcSet_eq(self, other));
+        };
+
+        case Py_GE:{ // >=
+            // is subset and is different
+            return PyBool_FromLong(_sub_super(other, self));
+        };
+    }
+
+    return NULL;
+}
 
 
 // methods
