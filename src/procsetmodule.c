@@ -798,13 +798,16 @@ ProcSet_eq(ProcSetObject* self, ProcSetObject* other){
 }
 
 static int _sub_super(ProcSetObject * self, ProcSetObject * other){
-    PyObject * result = ProcSet_and(self, (PyObject * ) other);
-    if (!result){
+    PyObject * intersection = ProcSet_and(self, (PyObject * ) other);
+    if (!intersection){
         return -1;
     }
 
     // self is a subset if every element is already in other
-    return ProcSet_eq((ProcSetObject * ) result, self);
+    int result = ProcSet_eq((ProcSetObject * ) intersection, self);
+    
+    ProcSet_dealloc((ProcSetObject *) intersection);    // we released the memory used by the intersection
+    return result;
 }
 
 // issubset
