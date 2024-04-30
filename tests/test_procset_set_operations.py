@@ -31,7 +31,7 @@
 import collections
 import itertools
 import pytest
-from procset import ProcInt, ProcSet
+from procset import ProcSet
 
 
 _TestCase = collections.namedtuple(
@@ -95,7 +95,6 @@ class _TestSetOperations:
 class _TestSetOperationsNonOperator(_TestSetOperations):
     valid_types = _powerset(
         0,
-        ProcInt(1),
         ProcSet(2),
     )
     incompatible_types = (
@@ -104,7 +103,6 @@ class _TestSetOperationsNonOperator(_TestSetOperations):
         # iterable of wrong type
         ('bad-iterable', ),
         ((None, ), ),
-        ((0, ProcInt(1), None), ),
     )
 
     def test_valid_operand_type(self, method, valid):
@@ -137,22 +135,16 @@ class _TestSetOperationsOperator(_TestSetOperations):
         set(),
         (),
         # Iterable[int]
-        ProcInt(0),
         {0},
         pytest.param((i*i for i in range(4)), id='(i*i for i in range(4))'),
-        # Iterable[ProcInt]
-        (ProcInt(0), ProcInt(1)),
         # Iterable[ProcSet]
         (ProcSet(0), ProcSet(1)),
-        # Iterable[Union[int, ProcInt, ProcSet]]
-        (0, ProcInt(1), ProcSet(2)),
         # not iterable
         None,
         0,
         # iterable of wrong type
         'bad-iterable',
         {None},
-        (0, ProcInt(1), None),
     )
 
     def test_valid_operand_type(self, method, valid):
@@ -2273,7 +2265,6 @@ class TestSymmetricDifference(_TestSetOperationsNonOperator):
     # need to redefine valid_types/incompatible_types because of the method signature
     valid_types = (
         (0, ),
-        (ProcInt(1), ),
         (ProcSet(2), ),
     )
     incompatible_types = (
@@ -2282,7 +2273,6 @@ class TestSymmetricDifference(_TestSetOperationsNonOperator):
         # iterable of wrong type
         ('bad-iterable', ),
         ((None, ), ),
-        ((0, ProcInt(1), None), ),
     )
 
 

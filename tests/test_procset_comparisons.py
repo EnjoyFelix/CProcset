@@ -27,7 +27,7 @@
 
 import collections
 import pytest
-from procset import ProcInt, ProcSet
+from procset import ProcSet
 
 
 _TestCase = collections.namedtuple(
@@ -79,15 +79,10 @@ class _TestComparisonNonOperator(_TestComparison):
         (),
         # Iterable[int]
         ProcSet(0),
-        ProcInt(0),
         {0},
         pytest.param((i*i for i in range(4)), id='(i*i for i in range(4))'),
-        # Iterable[ProcInt]
-        (ProcInt(0), ProcInt(1)),
         # Iterable[ProcSet]
         (ProcSet(0), ProcSet(1)),
-        # Iterable[Union[int, ProcInt, ProcSet]]
-        (0, ProcInt(1), ProcSet(2)),
     )
     incompatible_types = (
         # not iterable
@@ -96,7 +91,6 @@ class _TestComparisonNonOperator(_TestComparison):
         # iterable of wrong type
         'bad-iterable',
         {None},
-        (0, ProcInt(1), None),
     )
 
 
@@ -109,22 +103,16 @@ class _TestComparisonOperator(_TestComparison):
         set(),
         (),
         # Iterable[int]
-        ProcInt(0),
         {0},
         pytest.param((i*i for i in range(4)), id='(i*i for i in range(4))'),
-        # Iterable[ProcInt]
-        (ProcInt(0), ProcInt(1)),
         # Iterable[ProcSet]
         (ProcSet(0), ProcSet(1)),
-        # Iterable[Union[int, ProcInt, ProcSet]]
-        (0, ProcInt(1), ProcSet(2)),
         # not iterable
         None,
         0,
         # iterable of wrong type
         'bad-iterable',
         {None},
-        (0, ProcInt(1), None),
     )
 
 

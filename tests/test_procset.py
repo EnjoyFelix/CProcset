@@ -22,7 +22,7 @@
 import copy
 import itertools
 import pytest
-from procset import ProcInt, ProcSet
+from procset import ProcSet
 
 
 # used by {TestNew,TestInsert}::test_incompatible_iter_length
@@ -56,11 +56,11 @@ class TestNew:
         assert len(pset) == 0
         assert pset.count() == 0
 
-    def test_single_procint(self):
-        pset = ProcSet(ProcInt(0, 3))
-        assert list(pset) == [0, 1, 2, 3]
-        assert len(pset) == 4
-        assert pset.count() == 1
+    # def test_single_procint(self):
+    #     pset = ProcSet((0, 3))
+    #     assert list(pset) == [0, 1, 2, 3]
+    #     assert len(pset) == 4
+    #     assert pset.count() == 1
 
     def test_single_tuple(self):
         pset = ProcSet((0, 3))
@@ -69,7 +69,7 @@ class TestNew:
         assert pset.count() == 1
 
     def test_many_procint(self):
-        pset = ProcSet(ProcInt(0, 3), ProcInt(2, 3))
+        pset = ProcSet((0, 3), (2, 3))
         assert list(pset) == [0, 1, 2, 3]
         assert len(pset) == 4
         assert pset.count() == 1
@@ -82,7 +82,7 @@ class TestNew:
         assert pset.count() == 2
 
     def test_mixed_itvs(self):
-        pset = ProcSet(ProcInt(0, 3), (2, 3), [4, 7])
+        pset = ProcSet((0, 3), (2, 3), [4, 7])
         assert list(pset) == [0, 1, 2, 3, 4, 5, 6, 7]
         assert len(pset) == 8
         assert pset.count() == 1
@@ -131,7 +131,8 @@ class TestNew:
 
     @pytest.mark.parametrize('iterable', INCOMPATIBLE_ITER_TYPE_TESTCASES, ids=repr)
     def test_incompatible_iter_type(self, iterable):
-        pattern = r'^ProcInt\(\) argument (inf|sup) must be int$'
+        #pattern = r'^ProcInt\(\) argument (inf|sup) must be int$'
+        pattern = 'Wrong argument type !'
         with pytest.raises(TypeError, match=pattern):
             ProcSet(iterable)
 
@@ -143,14 +144,14 @@ class TestNew:
 # pylint: disable=no-self-use,too-many-public-methods,missing-docstring
 class TestMisc:
     def test_equal(self):
-        pset1 = ProcSet(ProcInt(0, 0))
-        pset2 = ProcSet(ProcInt(0, 0))
+        pset1 = ProcSet((0, 0))
+        pset2 = ProcSet((0, 0))
         assert id(pset1) != id(pset2)
         assert pset1 == pset2
 
     def test_noequal(self):
-        pset1 = ProcSet(ProcInt(0, 0))
-        pset2 = ProcSet(ProcInt(0, 1))
+        pset1 = ProcSet((0, 0))
+        pset2 = ProcSet((0, 1))
         assert id(pset1) != id(pset2)
         assert pset1 != pset2
 
@@ -313,7 +314,7 @@ class TestStringParsing:
 
     def test_contiguous(self):
         pset = ProcSet.from_str('0-3')
-        assert pset == ProcSet(ProcInt(0, 3))
+        assert pset == ProcSet((0, 3))
 
     def test_disjoint_pp(self):
         pset = ProcSet.from_str('1 2')
@@ -321,11 +322,11 @@ class TestStringParsing:
 
     def test_disjoint_ip(self):
         pset = ProcSet.from_str('0-1 2')
-        assert pset == ProcSet(ProcInt(0, 1), 2)
+        assert pset == ProcSet((0, 1), 2)
 
     def test_disjoint_ii(self):
         pset = ProcSet.from_str('0-1 2-3')
-        assert pset == ProcSet(ProcInt(0, 3))
+        assert pset == ProcSet((0, 3))
 
     def test_nostring(self):
         with pytest.raises(TypeError, match=r'^from_str\(\) argument 2 must be str, not int$'):
@@ -350,7 +351,7 @@ class TestDisplay:
         assert pset == eval(repr(pset))
 
     def test_single_point(self):
-        pset = ProcSet(ProcInt(0, 0))
+        pset = ProcSet((0, 0))
         assert str(pset) == '0'
         assert format(pset, ':,') == '0'
         assert format(pset) == str(pset)
@@ -359,7 +360,7 @@ class TestDisplay:
         assert pset == eval(repr(pset))
 
     def test_small(self):
-        pset = ProcSet(ProcInt(0, 1))
+        pset = ProcSet((0, 1))
         assert str(pset) == '0-1'
         assert format(pset, ':,') == '0:1'
         assert format(pset) == str(pset)
@@ -368,7 +369,7 @@ class TestDisplay:
         assert pset == eval(repr(pset))
 
     def test_contiguous(self):
-        pset = ProcSet(ProcInt(0, 7))
+        pset = ProcSet((0, 7))
         assert str(pset) == '0-7'
         assert format(pset, ':,') == '0:7'
         assert format(pset) == str(pset)
@@ -377,7 +378,7 @@ class TestDisplay:
         assert pset == eval(repr(pset))
 
     def test_disjoint(self):
-        pset = ProcSet(ProcInt(0, 3), ProcInt(7, 15))
+        pset = ProcSet((0, 3), (7, 15))
         assert str(pset) == '0-3 7-15'
         assert format(pset, ':,') == '0:3,7:15'
         assert format(pset) == str(pset)
@@ -402,27 +403,27 @@ class TestCopy:
         assert copy_pset == pset
         assert copy_pset is not pset
         assert copy_pset._itvs is not pset._itvs
-        pset |= ProcSet(ProcInt(128, 255))
+        pset |= ProcSet((128, 255))
         assert copy_pset != pset
 
     def test_copy_nonempty(self):
-        pset = ProcSet(ProcInt(0, 3))
+        pset = ProcSet((0, 3))
         copy_pset = copy.copy(pset)
         assert copy_pset == pset
         assert copy_pset is not pset
         assert copy_pset._itvs is not pset._itvs
-        pset |= ProcSet(ProcInt(128, 255))
+        pset |= ProcSet((128, 255))
         assert copy_pset != pset
 
     def test_copy_nested(self):
-        pset = ProcSet(ProcInt(0, 3))
+        pset = ProcSet((0, 3))
         nested = {0: pset, 1: [pset]}
         copy_nested = copy.copy(nested)
         assert copy_nested[0] == pset
         assert copy_nested[0] is pset
         assert copy_nested[0] == copy_nested[1][0]
         assert copy_nested[0] is copy_nested[1][0]
-        pset |= ProcSet(ProcInt(128, 255))
+        pset |= ProcSet((128, 255))
         assert copy_nested[0] == pset
         assert copy_nested[0] == copy_nested[1][0]
 
@@ -432,27 +433,27 @@ class TestCopy:
         assert dcopy_pset == pset
         assert dcopy_pset is not pset
         assert dcopy_pset._itvs is not pset._itvs
-        pset |= ProcSet(ProcInt(128, 255))
+        pset |= ProcSet((128, 255))
         assert dcopy_pset != pset
 
     def test_deepcopy_nonempty(self):
-        pset = ProcSet(ProcInt(0, 3))
+        pset = ProcSet((0, 3))
         dcopy_pset = copy.deepcopy(pset)
         assert dcopy_pset == pset
         assert dcopy_pset is not pset
         assert dcopy_pset._itvs is not pset._itvs
-        pset |= ProcSet(ProcInt(128, 255))
+        pset |= ProcSet((128, 255))
         assert dcopy_pset != pset
 
     def test_deepcopy_nested(self):
-        pset = ProcSet(ProcInt(0, 3))
+        pset = ProcSet((0, 3))
         nested = {0: pset, 1: [pset]}
         dcopy_nested = copy.deepcopy(nested)
         assert dcopy_nested[0] == pset
         assert dcopy_nested[0] is not pset
         assert dcopy_nested[0] == dcopy_nested[1][0]
         assert dcopy_nested[0] is dcopy_nested[1][0]
-        pset |= ProcSet(ProcInt(128, 255))
+        pset |= ProcSet((128, 255))
         assert dcopy_nested[0] != pset
         assert dcopy_nested[0] == dcopy_nested[1][0]
 
@@ -460,25 +461,25 @@ class TestCopy:
 # pylint: disable=no-self-use,too-many-public-methods,missing-docstring
 class TestGetItem:
     INT_INDEX_PSETS = (
-        ProcSet(ProcInt(0)),
-        ProcSet(ProcInt(0, 3)),
-        ProcSet(ProcInt(0, 3), ProcInt(8, 11)),
-        ProcSet(ProcInt(0, 1), ProcInt(3), ProcInt(6, 7)),
-        ProcSet(ProcInt(0, 3), ProcInt(8, 11), ProcInt(14, 15)),
+        ProcSet((0)),
+        ProcSet((0, 3)),
+        ProcSet((0, 3), (8, 11)),
+        ProcSet((0, 1), (3), (6, 7)),
+        ProcSet((0, 3), (8, 11), (14, 15)),
     )
     SLICE_INDEX_PSETS = (  # interval lengths: latin square + relatively prime numbers
-        ProcSet(ProcInt(0, 3), ProcInt(5, 11)),
-        ProcSet(ProcInt(0, 6), ProcInt(8, 11)),
-        ProcSet(ProcInt(0), ProcInt(2, 5), ProcInt(7, 13)),
-        ProcSet(ProcInt(0, 3), ProcInt(5, 11), ProcInt(13)),
-        ProcSet(ProcInt(0, 6), ProcInt(8), ProcInt(10, 13)),
-        ProcSet(ProcInt(0, 2), ProcInt(4, 8), ProcInt(10, 16)),
-        ProcSet(ProcInt(0, 4), ProcInt(6, 12), ProcInt(14, 16)),
-        ProcSet(ProcInt(0, 6), ProcInt(8, 10), ProcInt(12, 16)),
-        ProcSet(ProcInt(0), ProcInt(2, 4), ProcInt(6, 10), ProcInt(12, 18)),
-        ProcSet(ProcInt(0, 2), ProcInt(4, 8), ProcInt(10, 16), ProcInt(18)),
-        ProcSet(ProcInt(0, 4), ProcInt(6, 12), ProcInt(14), ProcInt(16, 18)),
-        ProcSet(ProcInt(0, 6), ProcInt(8), ProcInt(10, 12), ProcInt(14, 18)),
+        ProcSet((0, 3), (5, 11)),
+        ProcSet((0, 6), (8, 11)),
+        ProcSet((0), (2, 5), (7, 13)),
+        ProcSet((0, 3), (5, 11), (13)),
+        ProcSet((0, 6), (8), (10, 13)),
+        ProcSet((0, 2), (4, 8), (10, 16)),
+        ProcSet((0, 4), (6, 12), (14, 16)),
+        ProcSet((0, 6), (8, 10), (12, 16)),
+        ProcSet((0), (2, 4), (6, 10), (12, 18)),
+        ProcSet((0, 2), (4, 8), (10, 16), (18)),
+        ProcSet((0, 4), (6, 12), (14), (16, 18)),
+        ProcSet((0, 6), (8), (10, 12), (14, 18)),
     )
 
 
