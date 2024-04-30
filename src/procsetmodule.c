@@ -9,7 +9,7 @@
 #define STR_BUFFER_SIZE 255
 
 // Update type, used by the _update_core function
-typedef PyObject * (* UpdateType) (ProcSetObject *, PyObject *);
+typedef PyObject * (* InplaceType) (ProcSetObject *, PyObject *);
 
 //returns the number of intervals in the set
 PyObject *
@@ -151,6 +151,33 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
     return (PyObject *) result;
 }
 
+static PyObject *
+_inplace_core(ProcSetObject * self, PyObject * other, InplaceType fonction){
+    // we get the result of the or
+    PyObject * result = fonction(self, other);
+    
+    // you get no result when an error occures, so we check for errors
+    if (!result){
+        return NULL;
+    }
+    
+    Py_ssize_t nb_elements = ((ProcSetObject * ) result)->nb_boundary;
+
+    // self is probably not the right size
+    if (!pset_resize(self, nb_elements)){
+        return NULL;    // the error message is already set
+    }
+    
+    // we copy every element of result in self
+    pset_copy((ProcSetObject * ) result, self, nb_elements);
+
+    // we set the right size for self
+    self->nb_boundary = nb_elements;
+
+    // we return result as it's a copy of self and is not referrenced by anything
+    return result;
+}
+
 // __bool__
 static int
 ProcSet_bool(ProcSetObject* self){
@@ -171,9 +198,15 @@ ProcSet_or(ProcSetObject* self, PyObject* other){
     return merge(self, (ProcSetObject *) other, bitwiseOr);
 }
 
+// __ior__
+static PyObject *
+ProcSet_ior(ProcSetObject * self, PyObject* other){
+    return _inplace_core(self, other, ProcSet_or);
+}
+
 // __and__ et &
 static PyObject*
-ProcSet_and(ProcSetObject* self, ProcSetObject* other){
+ProcSet_and(ProcSetObject* self, PyObject* other){
 
     // other needs to be a procset, self will always be
     if (!Py_IS_TYPE(other, Py_TYPE(self))){
@@ -182,12 +215,18 @@ ProcSet_and(ProcSetObject* self, ProcSetObject* other){
     }
 
     // we call merge on the two objects and return the result
-    return merge(self, other, bitwiseAnd);
+    return merge(self, (ProcSetObject *) other, bitwiseAnd);
+}
+
+// __iand__
+static PyObject *
+ProcSet_iand(ProcSetObject * self, PyObject* other){
+    return _inplace_core(self, other, ProcSet_and);
 }
 
 // __sub__ et -
 static PyObject*
-ProcSet_sub(ProcSetObject* self, ProcSetObject* other){
+ProcSet_sub(ProcSetObject* self, PyObject* other){
 
     // other needs to be a procset, self will always be
     if (!Py_IS_TYPE(other, Py_TYPE(self))){
@@ -196,12 +235,18 @@ ProcSet_sub(ProcSetObject* self, ProcSetObject* other){
     }
 
     // we call merge on the two objects and return the result
-    return merge(self, other, bitwiseSubtraction);
+    return merge(self, (ProcSetObject *) other, bitwiseSubtraction);
+}
+
+// __isub__
+static PyObject *
+ProcSet_isub(ProcSetObject * self, PyObject* other){
+    return _inplace_core(self, other, ProcSet_sub);
 }
 
 // __xor__ et ^
 static PyObject*
-ProcSet_xor(ProcSetObject* self, ProcSetObject* other){
+ProcSet_xor(ProcSetObject* self, PyObject* other){
 
     // other needs to be a procset, self will always be
     if (!Py_IS_TYPE(other, Py_TYPE(self))){
@@ -210,7 +255,13 @@ ProcSet_xor(ProcSetObject* self, ProcSetObject* other){
     }
 
     // we call merge on the two objects and return the result
-    return merge(self, other, bitwiseXor);
+    return merge(self, (ProcSetObject *) other, bitwiseXor);
+}
+
+// __ixor__
+static PyObject *
+ProcSet_ixor(ProcSetObject * self, PyObject* other){
+    return _inplace_core(self, other, ProcSet_xor);
 }
 
 // repertoires des methodes 
@@ -236,15 +287,15 @@ static PyNumberMethods ProcSet_number_methods = {
     0, // unaryfunc nb_float;
 
     0, // binaryfunc nb_inplace_add;
-0, //(binaryfunc) nb_inplace_subtract,
+    (binaryfunc) ProcSet_isub,
     0, // binaryfunc nb_inplace_multiply;
     0, // binaryfunc nb_inplace_remainder;
     0, // ternaryfunc nb_inplace_power;
     0, // binaryfunc nb_inplace_lshift;
     0, // binaryfunc nb_inplace_rshift;
-0, //(binaryfunc) nb_inplace_and,
-0, //(binaryfunc) nb_inplace_xor,
-0, //(binaryfunc) nb_inplace_or,
+    (binaryfunc) ProcSet_iand,
+    (binaryfunc) ProcSet_ixor,
+    (binaryfunc) ProcSet_ior,
 
     0, // binaryfunc nb_floor_divide;
     0, // binaryfunc nb_true_divide;
@@ -260,6 +311,25 @@ static PyNumberMethods ProcSet_number_methods = {
 static PyObject *
 ProcSet_union(ProcSetObject *self, PyObject *args)
 {
+    // 2 choix:
+    //  - un procset
+    //  - une liste (args)
+
+    // an iterator on the arguments
+    PyObject* iterator = PyObject_GetIter(args);
+
+    // the current argument
+    PyObject* currentArg;
+
+    while((currentArg = PyIter_Next(iterator))){
+
+
+        Py_DECREF(currentArg);
+    }
+
+
+    Py_DECREF(iterator);
+
     //TODO : this function should allow args to be a list of procset (it should be a list of list but procset are wrappers for list and single values)
     ProcSetObject *other;
 
@@ -287,7 +357,7 @@ ProcSet_intersection(ProcSetObject *self, PyObject *args)
     }
 
     // we call merge on the two objects
-    return ProcSet_and(self, other);
+    return ProcSet_and(self, (PyObject *) other);
 
 }
 
@@ -308,7 +378,7 @@ ProcSet_difference(ProcSetObject *self, PyObject *args)
     // Py_ssize_t neededSize = self->nb_boundary;
 
     // we call merge on the two objects
-    return ProcSet_sub(self, other);
+    return ProcSet_sub(self, (PyObject *) other);
 
 }
 
@@ -325,13 +395,13 @@ ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
     }
 
     // we call merge on the two objects
-    return ProcSet_xor(self, other);
+    return ProcSet_xor(self, (PyObject *) other);
 
 }
 
 // factorisation des fonctions d'update
 static PyObject * 
-_update_core(ProcSetObject *self, PyObject *args, UpdateType UpdateType){
+_update_core(ProcSetObject *self, PyObject *args, InplaceType UpdateType){
         
     // the previous function does the heavy lifting for that one
     ProcSetObject * result = (ProcSetObject *) UpdateType(self, args);
@@ -747,7 +817,7 @@ ProcSet_eq(ProcSetObject* self, ProcSetObject* other){
 }
 
 static int _sub_super(ProcSetObject * self, ProcSetObject * other){
-    PyObject * result = ProcSet_and(self, other);
+    PyObject * result = ProcSet_and(self, (PyObject * ) other);
     if (!result){
         return -1;
     }
