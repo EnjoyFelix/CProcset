@@ -308,6 +308,51 @@ static PyNumberMethods ProcSet_number_methods = {
     0, // binaryfunc nb_inplace_matrix_multiply;
 };
 
+/* static PyObject *
+_literals_cores(ProcSetObject* self, PyObject *args, InplaceType function){
+    PyTypeObject * psetType = ((PyObject *) self)->ob_type;
+    // an iterator on the arguments
+    PyObject* iterator = PyObject_GetIter(args);
+
+    // the current argument
+    PyObject* currentArg;
+
+    // the union of all the args, it won't be used outside this scope so it's ok to have it in the stack
+    ProcSetObject pset_global;          // might just break everything cause _boundaries is NULL
+
+    while((currentArg = PyIter_Next(iterator))){
+        // if the current arg is not a procset
+        if (!Py_IS_TYPE(currentArg, psetType)){
+            // on crée un pset a partir de l'argument (soit un)
+            ProcSetObject * currentPset = FONCTION_QUI_FAIT_LE_PSET(currentArg); 
+
+            // si on n'a pas pu créer le pset
+            if (!currentPset){
+                Py_DECREF(currentArg);
+                Py_DECREF(iterator);
+
+                // on ne set pas d'exception car il y en a deja une
+                // on ne free pas pset_global car il est dans le stack
+                return NULL;   
+            }
+
+            //on ajoute les intervals dans le pset
+            ProcSet_ior(&pset_global, currentPset);
+            Py_DECREF(currentArg);
+            psetType->tp_dealloc(currentPset);
+            continue;
+        }
+
+        
+        // on ajoute les intervals dans le pset
+        ProcSet_ior(&pset_global, currentArg);
+        Py_DECREF(currentArg);
+    }
+    Py_DECREF(iterator);
+
+    return function(self, &pset_global);
+} */
+
 static PyObject *
 ProcSet_union(ProcSetObject *self, PyObject *args)
 {
@@ -497,7 +542,9 @@ static void
 ProcSet_dealloc(ProcSetObject *self)
 {
     // Debug message
+    #ifdef PSET_DEBUG
     printf("Calling dealloc on ProcSetObject @%p \n", (void * )self);
+    #endif
 
     // We free the memory allocated for the boundaries
     // using the integrated py function
@@ -587,8 +634,9 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
         else {
             Py_DECREF(currentItem);
             Py_DECREF(iterator);
-            PyMem_Free(self->_boundaries);  // we free the allocated space
-            PyErr_BadArgument();
+            PyErr_SetString(PyExc_TypeError, "Wrong argument type !"); //TODO : Better error
+            //PyMem_Free(self->_boundaries);
+            // ^ causes a segmentation fault during dealloc
             return -1;
         }
 
