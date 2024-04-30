@@ -311,25 +311,6 @@ static PyNumberMethods ProcSet_number_methods = {
 static PyObject *
 ProcSet_union(ProcSetObject *self, PyObject *args)
 {
-    // 2 choix:
-    //  - un procset
-    //  - une liste (args)
-
-    // an iterator on the arguments
-    PyObject* iterator = PyObject_GetIter(args);
-
-    // the current argument
-    PyObject* currentArg;
-
-    while((currentArg = PyIter_Next(iterator))){
-
-
-        Py_DECREF(currentArg);
-    }
-
-
-    Py_DECREF(iterator);
-
     //TODO : this function should allow args to be a list of procset (it should be a list of list but procset are wrappers for list and single values)
     ProcSetObject *other;
 
@@ -860,6 +841,27 @@ ProcSet_issuperset(ProcSetObject *self, PyObject * args){
     return PyBool_FromLong(_sub_super(other, self));
 }
 
+// isdisjoint
+static PyObject *
+ProcSet_isdisjoint(ProcSetObject *self, PyObject * args){
+    ProcSetObject * other;
+    if (!PyArg_ParseTuple(args, "O!", Py_TYPE(self), &other)){
+        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+        return NULL;
+    }
+
+    ProcSetObject * intersection = (ProcSetObject* ) ProcSet_and(self, (PyObject*) other);
+
+    if (!intersection){
+        return NULL;
+    }
+
+    int result = intersection->nb_boundary == 0;
+    ProcSet_dealloc(intersection);          // we release the resulting procset
+
+    return PyBool_FromLong(result);
+}
+
 // richcompare function
 static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int operation){
     //we compare the types:
@@ -918,6 +920,7 @@ static PyMethodDef ProcSet_methods[] = {
     {"symmetric_difference_update", (PyCFunction) ProcSet_update_symmetricDifference, METH_VARARGS, "Update the ProcSet, keeping only elements found in either the ProcSet or *other*, but not in both."},
     {"issubset", (PyCFunction) ProcSet_issubset, METH_VARARGS, "Test whether every element in the ProcSet is in *other*"},
     {"issuperset", (PyCFunction) ProcSet_issuperset, METH_VARARGS, "Test whether every element in *other* is in the ProcSet."},
+    {"isdisjoint", (PyCFunction) ProcSet_isdisjoint, METH_VARARGS, "Return ``True`` if the ProcSet has no processor in common with *other*."},
     /*{"aggregate", (PyCFunction) ProcSet_aggregate, METH_NOARGS, 
     "Return a new ProcSet that is the convex hull of the ProcSet.\n"
     "\n"
