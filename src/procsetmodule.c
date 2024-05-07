@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define STR_BUFFER_SIZE 255
-#define PSET_DEBUG 
+// #define PSET_DEBUG 
 
 static PyTypeObject ProcSetType;
 
@@ -450,11 +450,12 @@ _literals_cores(ProcSetObject* self, PyObject *args, InplaceType function){
     // the union of all the args, it won't be used outside this scope so it's ok to have it in the stack
     ProcSetObject* pset_global = (ProcSetObject *) ProcSetType.tp_new(&ProcSetType, NULL, NULL);
     pset_global->nb_boundary = 0;
-    printf("pset_global is @%p\n", (void *) pset_global);
 
     while((currentArg = PyIter_Next(iterator))){
         // if the current arg is not a procset
-        printf("currentArg is of type %s\n", currentArg->ob_type->tp_name);
+        #ifdef PSET_DEBUG
+        printf("\tcurrentArg is of type %s\n", currentArg->ob_type->tp_name);
+        #endif
         if (!Py_IS_TYPE(currentArg, &ProcSetType)){
             // on crée un pset a partir de l'argument (soit un)
             PyObject * currentPset = _pset_factory(currentArg); 
