@@ -7,6 +7,9 @@
 #include <string.h>
 
 #define STR_BUFFER_SIZE 255
+#define PSET_DEBUG 
+
+static PyTypeObject ProcSetType;
 
 // Update type, used by the _update_core function
 typedef PyObject * (* InplaceType) (ProcSetObject *, PyObject *);
@@ -86,8 +89,8 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
     pset_boundary_t sentinel = UINT32_MAX;
 
     Py_ssize_t lbound_index = 0, rbound_index = 0;
-    pset_boundary_t lhead = lpset->_boundaries[lbound_index];
-    pset_boundary_t rhead = rpset->_boundaries[rbound_index];
+    pset_boundary_t lhead = lpset->nb_boundary ? lpset->_boundaries[lbound_index] : sentinel;
+    pset_boundary_t rhead = rpset->nb_boundary ? rpset->_boundaries[rbound_index] : sentinel;
 
     //is this list on an upper bound or on a lower bound ?
     bool lside = lbound_index % 2 != 0;
@@ -153,7 +156,7 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
 
 static PyObject *
 _inplace_core(ProcSetObject * self, PyObject * other, InplaceType fonction){
-    // we get the result of the or
+    // we get the result
     PyObject * result = fonction(self, other);
     
     // you get no result when an error occures, so we check for errors
@@ -189,7 +192,11 @@ static PyObject*
 ProcSet_or(ProcSetObject* self, PyObject* other){
 
     // other needs to be a procset, self will always be
-    if (!Py_IS_TYPE(other, Py_TYPE(self))){
+    if (!Py_IS_TYPE(other, &ProcSetType)){
+        #ifdef PSET_DEBUG
+        printf("wrong type: %s!\n", other->ob_type->tp_name);
+        #endif
+
         PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
         return NULL;
     }
@@ -308,9 +315,102 @@ static PyNumberMethods ProcSet_number_methods = {
     0, // binaryfunc nb_inplace_matrix_multiply;
 };
 
-/* static PyObject *
+static PyObject* 
+_pset_factory(PyObject * arg){
+    // if arg est un nombre:
+    if (PyNumber_Check(arg)){
+        //the lower bound
+        pset_boundary_t lower = (pset_boundary_t) PyLong_AsLong(arg);
+
+        // on alloue de la mémoire pour le pset
+        ProcSetObject * res = (ProcSetObject *) PyMem_Malloc(sizeof(ProcSetObject));
+        ((PyObject * ) res)->ob_type = &ProcSetType;
+
+        if (!res){
+            PyErr_NoMemory();
+            return NULL;
+        }
+
+        // on alloue de la mémoire pour l'interval et on vérifie que tout va bien
+        res->_boundaries = (pset_boundary_t *) PyMem_Malloc(2 * sizeof(pset_boundary_t));
+        if (!res->_boundaries){
+            PyErr_NoMemory();
+            PyMem_Free(res);
+            return NULL;
+        }
+
+        // on met les valeurs
+        *(res->_boundaries) = lower;
+        res->_boundaries[1] = lower+1;
+
+        res->nb_boundary = 2;
+        return (PyObject * ) res;
+    } 
+
+    return NULL;
+   /*  // if arg is a procset
+    else if (Py_IS_TYPE(arg ,PROCSETTYPE)){
+        return ProcSet_copy((ProcSetObject * ) arg, NULL);         // on espere qu'il est pas ref sinon c relou
+    }
+    
+    // elseif arg iterable, inverted to remove a level of nesting
+    else if (!PySeqIter_Check(arg)){ // <- Should do the same as (PyIter_Check && PySeq_Check)
+        PyErr_SetString(PyExc_TypeError, "Expected a number, ProcSet or list");
+        return NULL;
+    }
+
+    Py_ssize_t nbrOfelements = PySequence_Size(arg);
+
+    // TODO : vvv factorisation
+    // we check for the number of elements in the iterable
+    if (nbrOfelements % 2 == 0){
+        PyErr_SetString(PyExc_AttributeError, "Wrong size");    //TODO: Better error
+        return NULL;
+    }
+
+    ProcSetObject * res = (ProcSetObject *) PyMem_Malloc(sizeof(ProcSetObject));
+    if (!res){
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    // on alloue de la mémoire pour l'interval et on vérifie que tout va bien
+    res->_boundaries = (pset_boundary_t *) PyMem_Malloc(nbrOfelements * sizeof(pset_boundary_t));
+    if (!res->_boundaries){
+        PyErr_NoMemory();
+        PyMem_Free(res);
+        return NULL;
+    }
+
+    PyObject* iterator = PyObject_GetIter(arg);
+    PyObject * currentObject;
+
+    Py_ssize_t i = 0;
+
+    while ((currentObject = PyIter_Next(iterator))){
+        if (!PyNumber_Check(currentObject)){
+            PyErr_SetString(PyExc_TypeError, "Wrong type, expected a value of type int !");
+            break;
+        }
+        res->_boundaries[i] = (pset_boundary_t) PyLong_AsLong(currentObject);
+        Py_DecRef(currentObject);
+    }
+
+    Py_XDECREF(currentObject);
+    Py_DecRef(iterator);
+
+    if (PyErr_Occurred()){
+        ((PyObject *) res)->ob_type->tp_dealloc(res);
+        return NULL;
+    }
+
+    res->nb_boundary = nbrOfelements;
+
+    return res; */
+}
+
+static PyObject *
 _literals_cores(ProcSetObject* self, PyObject *args, InplaceType function){
-    PyTypeObject * psetType = ((PyObject *) self)->ob_type;
     // an iterator on the arguments
     PyObject* iterator = PyObject_GetIter(args);
 
@@ -318,56 +418,52 @@ _literals_cores(ProcSetObject* self, PyObject *args, InplaceType function){
     PyObject* currentArg;
 
     // the union of all the args, it won't be used outside this scope so it's ok to have it in the stack
-    ProcSetObject pset_global;          // might just break everything cause _boundaries is NULL
+    ProcSetObject* pset_global = (ProcSetObject *) ProcSetType.tp_new(&ProcSetType, NULL, NULL);
+    pset_global->nb_boundary = 0;
+    printf("pset_global is @%p\n", (void *) pset_global);
 
     while((currentArg = PyIter_Next(iterator))){
         // if the current arg is not a procset
-        if (!Py_IS_TYPE(currentArg, psetType)){
+        printf("currentArg is of type %s\n", currentArg->ob_type->tp_name);
+        if (!Py_IS_TYPE(currentArg, &ProcSetType)){
             // on crée un pset a partir de l'argument (soit un)
-            ProcSetObject * currentPset = FONCTION_QUI_FAIT_LE_PSET(currentArg); 
+            PyObject * currentPset = _pset_factory(currentArg); 
 
             // si on n'a pas pu créer le pset
             if (!currentPset){
                 Py_DECREF(currentArg);
                 Py_DECREF(iterator);
+                Py_DECREF(pset_global);
 
                 // on ne set pas d'exception car il y en a deja une
-                // on ne free pas pset_global car il est dans le stack
                 return NULL;   
             }
 
             //on ajoute les intervals dans le pset
-            ProcSet_ior(&pset_global, currentPset);
+            ProcSet_ior(pset_global, currentPset);
             Py_DECREF(currentArg);
-            psetType->tp_dealloc(currentPset);
+            ProcSetType.tp_dealloc(currentPset);
             continue;
         }
-
+        printf("%s\n", PyErr_Occurred() ? "ERREUR" : "Pas d'erreur ici");
         
         // on ajoute les intervals dans le pset
-        ProcSet_ior(&pset_global, currentArg);
+        ProcSet_ior(pset_global, currentArg);
         Py_DECREF(currentArg);
     }
     Py_DECREF(iterator);
 
-    return function(self, &pset_global);
-} */
+    //moved this up to dealloc pset;
+    PyObject * result = function(self, (PyObject * ) pset_global);
+
+    ProcSetType.tp_dealloc((PyObject *) pset_global);
+    return result;
+}
 
 static PyObject *
 ProcSet_union(ProcSetObject *self, PyObject *args)
 {
-    //TODO : this function should allow args to be a list of procset (it should be a list of list but procset are wrappers for list and single values)
-    ProcSetObject *other;
-
-    // we try to parse another procset from the args
-    if (!PyArg_ParseTuple(args, "O!", ((PyObject *) self)->ob_type , &other)) {
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
-    }
-
-
-    // we call merge on the two objects
-    return ProcSet_or(self, (PyObject *) other);
+    return _literals_cores(self, args, ProcSet_or);
 }
 
 static PyObject *
@@ -634,7 +730,7 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
         else {
             Py_DECREF(currentItem);
             Py_DECREF(iterator);
-            PyErr_SetString(PyExc_TypeError, "Wrong argument type !"); //TODO : Better error
+            PyErr_SetString(PyExc_TypeError, "Incompatible iterable, expected an iterable of exactly 2 int"); //TODO : Better error
             //PyMem_Free(self->_boundaries);
             // ^ causes a segmentation fault during dealloc
             return -1;
