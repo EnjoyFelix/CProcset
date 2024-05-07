@@ -62,6 +62,38 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
     return (PyObject *) copy;
 }
 
+// returns the convex hull of the procset
+static PyObject *
+ProcSet_aggregate(ProcSetObject *self, PyObject *Py_UNUSED(args))
+{
+    // self should not be empty
+    if (!self->nb_boundary){
+        PyErr_SetString(PyExc_AssertionError, "self is empty !");
+        return NULL;
+    }
+    
+    // the resulting procset
+    ProcSetObject *result = PyObject_New(ProcSetObject, &ProcSetType);
+    if (!result) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    result->_boundaries = (pset_boundary_t *) PyMem_Malloc(2 * sizeof(pset_boundary_t));
+    if (!result->_boundaries) {
+        PyErr_NoMemory();
+        Py_DECREF(result);
+        return NULL;
+    }
+    
+    result->_boundaries[0] = self->_boundaries[0];
+    result->_boundaries[1] = self->_boundaries[self->nb_boundary-1]; 
+
+    result->nb_boundary = 2;
+
+    return (PyObject *) result;
+
+}
 
 
 
@@ -1065,14 +1097,14 @@ static PyMethodDef ProcSet_methods[] = {
     {"issubset", (PyCFunction) ProcSet_issubset, METH_VARARGS, "Test whether every element in the ProcSet is in *other*"},
     {"issuperset", (PyCFunction) ProcSet_issuperset, METH_VARARGS, "Test whether every element in *other* is in the ProcSet."},
     {"isdisjoint", (PyCFunction) ProcSet_isdisjoint, METH_VARARGS, "Return ``True`` if the ProcSet has no processor in common with *other*."},
-    /*{"aggregate", (PyCFunction) ProcSet_aggregate, METH_NOARGS, 
-    "Return a new ProcSet that is the convex hull of the ProcSet.\n"
+    {"aggregate", (PyCFunction) ProcSet_aggregate, METH_NOARGS, 
+    "Return a new ProcSet that is the convex hull of the given ProcSet.\n"
     "\n"
     "The convex hull of an empty ProcSet is the empty ProcSet.\n"
     "\n"
     "The convex hull of a non-empty ProcSet is the contiguous ProcSet made\n"
     "of the smallest unique interval containing all intervals from the\n"
-    "non-empty ProcSet."},  */
+    "non-empty ProcSet."},
     {"copy", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
     {"__copy__", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
     {"__deepcopy__", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new copy of the ProcSet."},
