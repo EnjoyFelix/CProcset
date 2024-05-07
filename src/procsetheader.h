@@ -65,4 +65,13 @@ pset_copy(ProcSetObject* src, ProcSetObject *destination, Py_ssize_t nb_elements
     return 1;
 }
 
+static void
+debug_printprocset(ProcSetObject * self, Py_ssize_t predicted_elements){
+    printf("procset @%p:\n", (void *) self);
+    printf("size : %li, predicted: %li\n", self->nb_boundary, predicted_elements);
+
+    for (int i = 0; i < self->nb_boundary; i+=2){
+        printf("\t%u - %u\n", self->_boundaries[i], self->_boundaries[i+1]);
+    }
+}
 #endif

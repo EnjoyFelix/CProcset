@@ -324,12 +324,11 @@ _pset_factory(PyObject * arg){
 
         // on alloue de la mémoire pour le pset
         ProcSetObject * res = (ProcSetObject *) PyMem_Malloc(sizeof(ProcSetObject));
-        ((PyObject * ) res)->ob_type = &ProcSetType;
-
         if (!res){
             PyErr_NoMemory();
             return NULL;
         }
+        ((PyObject * ) res)->ob_type = &ProcSetType;
 
         // on alloue de la mémoire pour l'interval et on vérifie que tout va bien
         res->_boundaries = (pset_boundary_t *) PyMem_Malloc(2 * sizeof(pset_boundary_t));
@@ -347,14 +346,8 @@ _pset_factory(PyObject * arg){
         return (PyObject * ) res;
     } 
 
-    return NULL;
-   /*  // if arg is a procset
-    else if (Py_IS_TYPE(arg ,PROCSETTYPE)){
-        return ProcSet_copy((ProcSetObject * ) arg, NULL);         // on espere qu'il est pas ref sinon c relou
-    }
-    
     // elseif arg iterable, inverted to remove a level of nesting
-    else if (!PySeqIter_Check(arg)){ // <- Should do the same as (PyIter_Check && PySeq_Check)
+    else if (!PySequence_Check(arg)){ // <- Should do the same as (PyIter_Check && PySeq_Check)
         PyErr_SetString(PyExc_TypeError, "Expected a number, ProcSet or list");
         return NULL;
     }
@@ -363,7 +356,7 @@ _pset_factory(PyObject * arg){
 
     // TODO : vvv factorisation
     // we check for the number of elements in the iterable
-    if (nbrOfelements % 2 == 0){
+    if (nbrOfelements % 2 != 0){
         PyErr_SetString(PyExc_AttributeError, "Wrong size");    //TODO: Better error
         return NULL;
     }
@@ -373,6 +366,7 @@ _pset_factory(PyObject * arg){
         PyErr_NoMemory();
         return NULL;
     }
+    ((PyObject * ) res)->ob_type = &ProcSetType;
 
     // on alloue de la mémoire pour l'interval et on vérifie que tout va bien
     res->_boundaries = (pset_boundary_t *) PyMem_Malloc(nbrOfelements * sizeof(pset_boundary_t));
@@ -386,13 +380,16 @@ _pset_factory(PyObject * arg){
     PyObject * currentObject;
 
     Py_ssize_t i = 0;
+    bool outer = false;
 
     while ((currentObject = PyIter_Next(iterator))){
         if (!PyNumber_Check(currentObject)){
             PyErr_SetString(PyExc_TypeError, "Wrong type, expected a value of type int !");
             break;
         }
-        res->_boundaries[i] = (pset_boundary_t) PyLong_AsLong(currentObject);
+        res->_boundaries[i] = (pset_boundary_t) PyLong_AsLong(currentObject) + (outer ? 1 : 0);
+        outer = !outer;
+        i++;
         Py_DecRef(currentObject);
     }
 
@@ -400,13 +397,14 @@ _pset_factory(PyObject * arg){
     Py_DecRef(iterator);
 
     if (PyErr_Occurred()){
-        ((PyObject *) res)->ob_type->tp_dealloc(res);
+        ProcSetType.tp_dealloc((PyObject*) res);
         return NULL;
     }
 
     res->nb_boundary = nbrOfelements;
+    debug_printprocset(res, 2);
 
-    return res; */
+    return (PyObject*)res;
 }
 
 static PyObject *
@@ -445,7 +443,6 @@ _literals_cores(ProcSetObject* self, PyObject *args, InplaceType function){
             ProcSetType.tp_dealloc(currentPset);
             continue;
         }
-        printf("%s\n", PyErr_Occurred() ? "ERREUR" : "Pas d'erreur ici");
         
         // on ajoute les intervals dans le pset
         ProcSet_ior(pset_global, currentArg);
