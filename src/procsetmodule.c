@@ -1118,7 +1118,7 @@ static PyMethodDef ProcSet_methods[] = {
 static PyTypeObject ProcSetType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "procset.ProcSet",                           // __name__
-    .tp_doc = "C implementation of the ProcSet datatype",   // __doc__
+    .tp_doc = "\n\tSet of non-overlapping (i.e., disjoint) non-negative integer intervals.\n",   // __doc__
     .tp_version_tag = 1,                                    // version
     .tp_basicsize = sizeof(ProcSetObject),                  // size of the struct
     .tp_itemsize = 0,                                       // additional size values for dynamic objects
@@ -1139,7 +1139,7 @@ static PyTypeObject ProcSetType = {
 static PyModuleDef procsetmodule = {
     PyModuleDef_HEAD_INIT,
     .m_name = "procset",
-    .m_doc = "ProcSet module to manipulate set of processor",
+    .m_doc = "\nToolkit to manage sets of closed intervals.\n\nThis implementation requires intervals bounds to be non-negative integers. This\ndesign choice has been made as procset aims at managing resources for\nscheduling. Hence, the manipulated intervals can be represented as indexes.\n",
     .m_size = -1,
 };
 
