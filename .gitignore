@@ -3,8 +3,6 @@ fonctions&impl.md
 .vscode
 main.py
 .builded-module
-test/assets/
-test/*.html
 
 # Created by https://www.toptal.com/developers/gitignore/api/c,python,visualstudio,visualstudiocode
 # Edit at https://www.toptal.com/developers/gitignore?templates=c,python,visualstudio,visualstudiocode
