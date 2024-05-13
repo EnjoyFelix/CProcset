@@ -530,17 +530,7 @@ ProcSet_union(ProcSetObject *self, PyObject *args)
 static PyObject *
 ProcSet_intersection(ProcSetObject *self, PyObject *args)
 {
-    //TODO : this function should allow args to be a list of procset (it should be a list of list but procset are wrappers for list and single values)
-    ProcSetObject *other;
-
-    // we try to parse another procset from the args
-    if (!PyArg_ParseTuple(args, "O!", ((PyObject *) self)->ob_type, &other)) {
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
-    }
-
-    // we call merge on the two objects
-    return ProcSet_and(self, (PyObject *) other);
+    return _literals_cores(self, args, ProcSet_and);
 
 }
 
@@ -548,37 +538,14 @@ static PyObject *
 ProcSet_difference(ProcSetObject *self, PyObject *args)
 {
 
-    //TODO : this function should allow args to be a list of procset (it should be a list of list but procset are wrappers for list and single values)
-    ProcSetObject *other;
-
-    // we try to parse another procset from the args
-    if (!PyArg_ParseTuple(args, "O!", ((PyObject *) self)->ob_type, &other)) {
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
-    }
-
-
-    // Py_ssize_t neededSize = self->nb_boundary;
-
-    // we call merge on the two objects
-    return ProcSet_sub(self, (PyObject *) other);
+    return _literals_cores(self, args, ProcSet_sub);
 
 }
 
 static PyObject *
 ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
 {
-    //TODO : this function should allow args to be a list of procset (it should be a list of list but procset are wrappers for list and single values)
-    ProcSetObject *other;
-
-    // we try to parse another procset from the args
-    if (!PyArg_ParseTuple(args, "O!", ((PyObject *) self)->ob_type, &other)) {
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
-    }
-
-    // we call merge on the two objects
-    return ProcSet_xor(self, (PyObject *) other);
+    return _literals_cores(self, args, ProcSet_xor);
 
 }
 
