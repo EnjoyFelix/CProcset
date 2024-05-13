@@ -224,12 +224,7 @@ ProcSet_or(ProcSetObject* self, PyObject* other){
 
     // other needs to be a procset, self will always be
     if (!Py_IS_TYPE(other, &ProcSetType)){
-        #ifdef PSET_DEBUG
-        printf("wrong type: %s!\n", other->ob_type->tp_name);
-        #endif
-
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
+        Py_RETURN_NOTIMPLEMENTED;
     }
 
     // we call merge on the two objects and return the result
@@ -247,9 +242,8 @@ static PyObject*
 ProcSet_and(ProcSetObject* self, PyObject* other){
 
     // other needs to be a procset, self will always be
-    if (!Py_IS_TYPE(other, Py_TYPE(self))){
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
+    if (!Py_IS_TYPE(other, &ProcSetType)){
+        Py_RETURN_NOTIMPLEMENTED;
     }
 
     // we call merge on the two objects and return the result
@@ -267,9 +261,8 @@ static PyObject*
 ProcSet_sub(ProcSetObject* self, PyObject* other){
 
     // other needs to be a procset, self will always be
-    if (!Py_IS_TYPE(other, Py_TYPE(self))){
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
+    if (!Py_IS_TYPE(other, &ProcSetType)){
+        Py_RETURN_NOTIMPLEMENTED;
     }
 
     // we call merge on the two objects and return the result
@@ -287,9 +280,8 @@ static PyObject*
 ProcSet_xor(ProcSetObject* self, PyObject* other){
 
     // other needs to be a procset, self will always be
-    if (!Py_IS_TYPE(other, Py_TYPE(self))){
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
+    if (!Py_IS_TYPE(other, &ProcSetType)){
+        Py_RETURN_NOTIMPLEMENTED;
     }
 
     // we call merge on the two objects and return the result
