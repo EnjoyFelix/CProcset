@@ -7,7 +7,7 @@
 #include <string.h>
 
 #define STR_BUFFER_SIZE 255
-// #define PSET_DEBUG 
+#define PSET_DEBUG
 
 static PyTypeObject ProcSetType;
 
@@ -348,10 +348,14 @@ static PyNumberMethods ProcSet_number_methods = {
 };
 
 // merge de procset récursif DPR
-static ProcSetObject * _rec_merge(ProcSetObject ***list, Py_ssize_t min, Py_ssize_t max){
+static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t min, Py_ssize_t max){
+    #ifdef PSET_DEBUG
+    printf("_rec_merge -> min: %li, max: %li, avg: %li\n", min, max, (min + max) >> 1);
+    #endif
+
     if (min == max){
         //on retourne le pset courant
-        return ProcSet_copy((*list)[min], NULL);
+        return (ProcSetObject *) ProcSet_copy(list[min], NULL);
     }
     
     // average
@@ -367,9 +371,8 @@ static ProcSetObject * _rec_merge(ProcSetObject ***list, Py_ssize_t min, Py_ssiz
 
     // on autorise les deux a se faire GC car merge retourne un nouveau PSET 
     // (c'est pour ca que je retourne une copy dans le cas trivial, sinon je lose un truc qui m'appartient; )
-    Py_DECREF(left);
-    Py_DECREF(right);
-
+    ProcSetType.tp_dealloc((PyObject * ) left);
+    ProcSetType.tp_dealloc((PyObject * ) right);
     return result; 
 }
 
@@ -386,6 +389,7 @@ _pset_factory(PyObject * arg){
             PyErr_NoMemory();
             return NULL;
         }
+
         ((PyObject * ) res)->ob_type = &ProcSetType;
 
         // on alloue de la mémoire pour l'interval et on vérifie que tout va bien
@@ -401,6 +405,9 @@ _pset_factory(PyObject * arg){
         res->_boundaries[1] = lower+1;
 
         res->nb_boundary = 2;
+        #ifdef PSET_DEBUG
+        printf("\t* created pset out of single digit\n");
+        #endif
         return (PyObject * ) res;
     } 
 
@@ -726,8 +733,11 @@ static int
 ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
 {
     Py_ssize_t lengthOfArgs = PySequence_Size(args);
+    #ifdef PSET_DEBUG
     printf("args : %p, size: %li\n", (void *) args, lengthOfArgs); // debug
+    #endif
 
+    
     // if no args were given:
     if (!args || !lengthOfArgs){
         //return 0 as this can happen in the py implementation
@@ -739,7 +749,7 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
 
     // an iterator on args (args is a list of objects)
     PyObject * iterator = PyObject_GetIter(args);
-
+    
     // if args did not return an iterator (iterator protocol)
     if (!iterator){
         PyErr_SetString(PyExc_Exception, "Could not iterate over given args");        // we set the error message
@@ -755,12 +765,13 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
     // for every argument
     while ((currentItem = PyIter_Next(iterator))) {
         PyObject * currentPset = _pset_factory(currentItem);
+
         if (!currentPset){
             break;
         }
 
         // on ajoute le pset
-        psets[position] = currentPset;
+        psets[position] = (ProcSetObject *) currentPset;
 
         position += 1;                           // we move on to the next interval
         Py_DECREF(currentItem);             // we allow the current element to be gc'ed 
@@ -780,16 +791,21 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
         }
 
         return -1;
-    }  
+    }
 
-    PyObject * other = _rec_merge(psets, 0, lengthOfArgs);
+    ProcSetObject* other = _rec_merge(psets, 0, lengthOfArgs-1);
     if (!other){
         // une erreur deja set par merge()
         return -1;
     }
-    
-    self->_boundaries = ((ProcSetObject *) other)->_boundaries;
-    self->nb_boundary = ((ProcSetObject *) other)->nb_boundary;
+
+    for (Py_ssize_t i = 0; i < position; i++){
+            ProcSetType.tp_dealloc((PyObject *)psets[i]);
+            //Py_DECREF((PyObject *)psets[i]);
+    }
+
+    self->_boundaries = other->_boundaries;
+    self->nb_boundary = other->nb_boundary;
     return 0;
 }
 
