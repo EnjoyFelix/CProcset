@@ -35,7 +35,8 @@ pset_resize(ProcSetObject* pset, Py_ssize_t nb_elements){
 
         if (!temp){
             //we dont check for previous py errors since they would have been caught in the "if !result"
-            PyErr_NoMemory();   // set the error message
+            printf("old addr :%p, size: %li, taille demandee: %li\n", (void *) pset->_boundaries, pset->nb_boundary, nb_elements);
+            PyErr_SetString(PyExc_MemoryError, "Failed to realloc to a smaller size !");
             return 0;           // return false
         }
 

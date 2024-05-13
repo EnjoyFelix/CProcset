@@ -191,8 +191,8 @@ _inplace_core(ProcSetObject * self, PyObject * other, InplaceType fonction){
     PyObject * result = fonction(self, other);
     
     // you get no result when an error occures, so we check for errors
-    if (!result){
-        return NULL;
+    if (!result || Py_Is(result, Py_NotImplemented)){
+        return result;
     }
     
     Py_ssize_t nb_elements = ((ProcSetObject * ) result)->nb_boundary;
@@ -418,7 +418,7 @@ _pset_factory(PyObject * arg){
     // TODO : vvv factorisation
     // we check for the number of elements in the iterable
     if (nbrOfelements % 2 != 0){
-        PyErr_SetString(PyExc_AttributeError, "Wrong size");    //TODO: Better error
+        PyErr_SetString(PyExc_TypeError, "TypeError: Incompatible iterable, expected an iterable of exactly 2 int");
         return NULL;
     }
 
