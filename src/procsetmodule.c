@@ -467,7 +467,9 @@ _pset_factory(PyObject * arg){
     }
 
     res->nb_boundary = nbrOfelements;
+    #ifdef PSET_DEBUG
     debug_printprocset(res, 2);
+    #endif
 
     return (PyObject*)res;
 }
