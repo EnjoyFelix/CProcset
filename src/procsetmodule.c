@@ -7,7 +7,6 @@
 #include <string.h>
 
 #define STR_BUFFER_SIZE 255
-#define PSET_DEBUG
 
 static PyTypeObject ProcSetType;
 
@@ -410,6 +409,11 @@ _pset_factory(PyObject * arg){
         #endif
         return (PyObject * ) res;
     } 
+    
+    // if it's a procset
+    else if (Py_IS_TYPE(arg, &ProcSetType)){
+        return ProcSet_copy((ProcSetObject *) arg, NULL);
+    }
 
     // elseif arg iterable, inverted to remove a level of nesting
     else if (!PySequence_Check(arg)){ // <- Should do the same as (PyIter_Check && PySeq_Check)

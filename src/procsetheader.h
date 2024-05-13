@@ -5,6 +5,8 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+//#define PSET_DEBUG
+
 typedef uint32_t pset_boundary_t;
 pset_boundary_t MAX_BOUND_VALUE = UINT32_MAX;
 
@@ -65,6 +67,7 @@ pset_copy(ProcSetObject* src, ProcSetObject *destination, Py_ssize_t nb_elements
     return 1;
 }
 
+#ifdef PSET_DEBUG
 static void
 debug_printprocset(ProcSetObject * self, Py_ssize_t predicted_elements){
     printf("procset @%p:\n", (void *) self);
@@ -74,4 +77,5 @@ debug_printprocset(ProcSetObject * self, Py_ssize_t predicted_elements){
         printf("\t%u - %u\n", self->_boundaries[i], self->_boundaries[i+1]);
     }
 }
+#endif
 #endif
