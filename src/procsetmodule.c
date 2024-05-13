@@ -347,6 +347,32 @@ static PyNumberMethods ProcSet_number_methods = {
     0, // binaryfunc nb_inplace_matrix_multiply;
 };
 
+// merge de procset récursif DPR
+static ProcSetObject * _rec_merge(ProcSetObject ***list, Py_ssize_t min, Py_ssize_t max){
+    if (min == max){
+        //on retourne le pset courant
+        return ProcSet_copy((*list)[min], NULL);
+    }
+    
+    // average
+    Py_ssize_t avg = (min + max) >> 1;
+
+    // le procset de gauche 
+    ProcSetObject * left = _rec_merge(list, min, avg);
+    // le pset de droite
+    ProcSetObject * right = _rec_merge(list, avg+1, max);
+
+    // le resultat de leur union
+    ProcSetObject * result = (ProcSetObject *) merge(left, right, bitwiseOr);
+
+    // on autorise les deux a se faire GC car merge retourne un nouveau PSET 
+    // (c'est pour ca que je retourne une copy dans le cas trivial, sinon je lose un truc qui m'appartient; )
+    Py_DECREF(left);
+    Py_DECREF(right);
+
+    return result; 
+}
+
 static PyObject* 
 _pset_factory(PyObject * arg){
     // if arg est un nombre:
@@ -699,79 +725,71 @@ ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(k
 static int
 ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
 {
+    Py_ssize_t lengthOfArgs = PySequence_Size(args);
+    printf("args : %p, size: %li\n", (void *) args, lengthOfArgs); // debug
+
     // if no args were given:
-    if (!args){
+    if (!args || !lengthOfArgs){
         //return 0 as this can happen in the py implementation
         return 0;
     }
 
-    // we allocate the memory for the list
-    self->_boundaries = (pset_boundary_t *) PyMem_Malloc(PySequence_Size(args) * 2 * sizeof(pset_boundary_t));
-    if (!self->_boundaries){
-        PyErr_NoMemory();
-        return -1;
-    }
-
+    // une liste de pointeurs vers des psets
+    ProcSetObject * psets[lengthOfArgs];
 
     // an iterator on args (args is a list of objects)
     PyObject * iterator = PyObject_GetIter(args);
 
     // if args did not return an iterator (iterator protocol)
     if (!iterator){
-        PyErr_SetString(PyExc_Exception, "Could not get an iterator on given args");        // we set the error message
-        PyMem_Free(self->_boundaries);  // we free the allocated space
+        PyErr_SetString(PyExc_Exception, "Could not iterate over given args");        // we set the error message
         return -1;
     }
 
     // the current item
     PyObject * currentItem;
 
-    //the position of the interval
-    int itv = 0;
+    //the position in the list
+    int position = 0;
 
     // for every argument
     while ((currentItem = PyIter_Next(iterator))) {
-        //if the argument is iterable
-        if (PySequence_Check(currentItem) && PySequence_Size(currentItem) == 2){
-            // bounds of the interval as PyObjects
-            PyObject *_a = PySequence_GetItem(currentItem, 0);
-            PyObject *_b = PySequence_GetItem(currentItem, 1);
-
-            // bound on the interval as procset boundaries
-            pset_boundary_t a = PyLong_AsLong(_a);
-            pset_boundary_t b = PyLong_AsLong(_b);
-
-            // DECREF is called here because getItem gives a pointer to a new object
-            Py_DECREF(_a);
-            Py_DECREF(_b);
-
-            self->_boundaries[itv] = a;             // lower bound
-            self->_boundaries[itv+1] = b+1;         // greater bound, +1 cause half opened
-        }
-        // else if the argument is a number
-        else if (PyNumber_Check(currentItem)){
-            //TODO : check for error
-            pset_boundary_t val = PyLong_AsLong(currentItem);
-            self->_boundaries[itv] = val;          // lower bound
-            self->_boundaries[itv+1] = val+1;      // greater bound
-
-        } 
-        //bad argument
-        else {
-            Py_DECREF(currentItem);
-            Py_DECREF(iterator);
-            PyErr_SetString(PyExc_TypeError, "Incompatible iterable, expected an iterable of exactly 2 int"); //TODO : Better error
-            //PyMem_Free(self->_boundaries);
-            // ^ causes a segmentation fault during dealloc
-            return -1;
+        PyObject * currentPset = _pset_factory(currentItem);
+        if (!currentPset){
+            break;
         }
 
-        itv += 2;                           // we move on to the next interval
+        // on ajoute le pset
+        psets[position] = currentPset;
+
+        position += 1;                           // we move on to the next interval
         Py_DECREF(currentItem);             // we allow the current element to be gc'ed 
-    };  
+    };
 
-    Py_DECREF(iterator);                    // we free the now useless iterator
-    self->nb_boundary = PySequence_Size(args) * 2;
+    // we free the now useless iterator (even if an error occured)
+    Py_DECREF(iterator);  
+
+    // si une erreur s'est produite lors de la création
+    if (PyErr_Occurred()){
+        // on autorise currentitem a se faire gc (il n'est pas gc quand il y a une erreur)
+        Py_DECREF(currentItem);
+
+        for (Py_ssize_t i = 0; i < position; i++){
+            // xdecref -> decref as i'm not going over position
+            Py_DECREF(psets[i]);
+        }
+
+        return -1;
+    }  
+
+    PyObject * other = _rec_merge(psets, 0, lengthOfArgs);
+    if (!other){
+        // une erreur deja set par merge()
+        return -1;
+    }
+    
+    self->_boundaries = ((ProcSetObject *) other)->_boundaries;
+    self->nb_boundary = ((ProcSetObject *) other)->nb_boundary;
     return 0;
 }
 
