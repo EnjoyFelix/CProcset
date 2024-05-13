@@ -208,8 +208,12 @@ _inplace_core(ProcSetObject * self, PyObject * other, InplaceType fonction){
     // we set the right size for self
     self->nb_boundary = nb_elements;
 
-    // we return result as it's a copy of self and is not referrenced by anything
-    return result;
+/*     // we return result as it's a copy of self and is not referrenced by anything
+    return result; */
+    
+    Py_DECREF(result);
+    Py_INCREF(self);        // it needs to return self for parity
+    return (PyObject *) self;
 }
 
 // __bool__
