@@ -371,71 +371,61 @@ static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t min, Py_ssiz
     return result; 
 }
 
-static PyObject* 
-_pset_factory(PyObject * arg){
-    // if arg est un nombre:
-    if (PyNumber_Check(arg)){
-        //the lower bound
-        pset_boundary_t lower = (pset_boundary_t) PyLong_AsLong(arg);
+// makes a procset from a number, ex: ProcSet(1)
+static ProcSetObject *
+_parse_integer(PyObject * arg){
+    //the lower bound
+    pset_boundary_t lower = (pset_boundary_t) PyLong_AsLong(arg);
 
-        // on alloue de la mémoire pour le pset
-        ProcSetObject * res = (ProcSetObject *) ProcSetType.tp_new(&ProcSetType, NULL, NULL);
-        if (!res){
-            PyErr_NoMemory();
-            return NULL;
-        }
-
-        // on alloue de la mémoire pour l'interval et on vérifie que tout va bien
-        res->_boundaries = (pset_boundary_t *) PyMem_Malloc(2 * sizeof(pset_boundary_t));
-        if (!res->_boundaries){
-            PyErr_NoMemory();
-            PyMem_Free(res);
-            return NULL;
-        }
-
-        // on met les valeurs
-        *(res->_boundaries) = lower;
-        res->_boundaries[1] = lower+1;
-
-        res->nb_boundary = 2;
-        #ifdef PSET_DEBUG
-        printf("\t* created pset out of single digit\n");
-        #endif
-        return (PyObject * ) res;
-    } 
-    
-    // if it's a procset
-    else if (Py_IS_TYPE(arg, &ProcSetType)){
-        return ProcSet_copy((ProcSetObject *) arg, NULL);
-    }
-
-    // elseif arg iterable, inverted to remove a level of nesting
-    else if (!PySequence_Check(arg)){ // <- Should do the same as (PyIter_Check && PySeq_Check)
-        PyErr_SetString(PyExc_TypeError, "Expected a number, ProcSet or list");
-        return NULL;
-    }
-
-    Py_ssize_t nbrOfelements = PySequence_Size(arg);
-
-    // TODO : vvv factorisation
-    // we check for the number of elements in the iterable
-    if (nbrOfelements % 2 != 0){
-        PyErr_SetString(PyExc_TypeError, "TypeError: Incompatible iterable, expected an iterable of exactly 2 int");
-        return NULL;
-    }
-
-    ProcSetObject * res = (ProcSetObject *) PyMem_Malloc(sizeof(ProcSetObject));
+    // on alloue de la mémoire pour le pset
+    ProcSetObject * res = (ProcSetObject *) ProcSetType.tp_new(&ProcSetType, NULL, NULL);
     if (!res){
         PyErr_NoMemory();
         return NULL;
     }
-    ((PyObject * ) res)->ob_type = &ProcSetType;
+
+    // on alloue de la mémoire pour l'interval et on vérifie que tout va bien
+    res->_boundaries = (pset_boundary_t *) PyMem_Malloc(2 * sizeof(pset_boundary_t));
+    if (!res->_boundaries){
+        PyErr_NoMemory();
+        ProcSetType.tp_dealloc((PyObject *) res);
+        return NULL;
+    }
+
+    // on met les valeurs
+    *(res->_boundaries) = lower;
+    res->_boundaries[1] = lower+1;
+
+    res->nb_boundary = 2;
+
+    #ifdef PSET_DEBUG
+    printf("\t* parsed a pset from a single digit\n");
+    #endif
+
+    return res;
+}
+
+// makes a procset from a list, ex: ProcSet([]), ProcSet([1]), ProcSet([1,5])
+static ProcSetObject *
+_parse_list(PyObject * arg){
+    Py_ssize_t nbrOfelements = PySequence_Size(arg);
+
+    // we check for the number of elements in the iterable
+    if (nbrOfelements > 2){
+        PyErr_SetString(PyExc_TypeError, "TypeError: Incompatible iterable, expected an iterable of exactly 2 int");
+        return NULL;
+    }
+
+    ProcSetObject * res = (ProcSetObject *) ProcSetType.tp_new(&ProcSetType, NULL, NULL);
+    if (!res){
+        return NULL;
+    }
 
     // on alloue de la mémoire pour l'interval et on vérifie que tout va bien
     res->_boundaries = (pset_boundary_t *) PyMem_Malloc(nbrOfelements * sizeof(pset_boundary_t));
     if (!res->_boundaries){
         PyErr_NoMemory();
-        PyMem_Free(res);
+        ProcSetType.tp_dealloc((PyObject *) res);
         return NULL;
     }
 
@@ -469,7 +459,32 @@ _pset_factory(PyObject * arg){
     debug_printprocset(res, 2);
     #endif
 
-    return (PyObject*)res;
+    return res;
+}
+
+static PyObject* 
+_pset_factory(PyObject * arg){
+    printf(!arg ? "arg is null !\n": "arg is of type %s\n", arg->ob_type->tp_name);
+
+    // if arg est un nombre:
+    if (PyNumber_Check(arg)){
+        return (PyObject *) _parse_integer(arg);
+    } 
+    
+    // if it's a procset
+    else if (Py_IS_TYPE(arg, &ProcSetType)){
+        return ProcSet_copy((ProcSetObject *) arg, NULL);
+    }
+    
+    // elseif arg iterable
+    else if (PySequence_Check(arg) || PySet_Check(arg)){
+        return (PyObject*) _parse_list(arg);
+        
+    }
+
+    PyErr_SetString(PyExc_TypeError, "Expected a number, ProcSet or list");
+    return NULL;
+    
 }
 
 // returns a single procset made with the given args
@@ -974,9 +989,8 @@ ProcSet_issuperset(ProcSetObject *self, PyObject * args){
 // isdisjoint
 static PyObject *
 ProcSet_isdisjoint(ProcSetObject *self, PyObject * args){
-    ProcSetObject * other;
-    if (!PyArg_ParseTuple(args, "O!", Py_TYPE(self), &other)){
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
+    ProcSetObject * other = _get_pset_from_args(args);
+    if (!other){
         return NULL;
     }
 
@@ -988,6 +1002,7 @@ ProcSet_isdisjoint(ProcSetObject *self, PyObject * args){
 
     int result = intersection->nb_boundary == 0;
     ProcSet_dealloc(intersection);          // we release the resulting procset
+    ProcSet_dealloc(other);
 
     return PyBool_FromLong(result);
 }
