@@ -474,6 +474,74 @@ _pset_factory(PyObject * arg){
     return (PyObject*)res;
 }
 
+// returns a single procset made with the given args
+static ProcSetObject*
+_get_pset_from_args(PyObject * args){
+    if (!args || Py_IsNone(args) || !PySequence_Check(args)){
+        PyErr_BadArgument(); // TODO: BETTER ERROR MESSAGE
+        return NULL;
+    }
+
+    Py_ssize_t lengthOfArgs = PySequence_Size(args);
+    #ifdef PSET_DEBUG
+    printf("args : %p, size: %li\n", (void *) args, lengthOfArgs); // debug
+    #endif
+
+    // if no args were given (valid case)
+    if (!lengthOfArgs){
+        return NULL; //TODO : BETTER RETURN
+    }
+
+    // une liste de pointeurs vers des psets
+    ProcSetObject * psets[lengthOfArgs];
+
+    // an iterator on args (args is a list of objects)
+    PyObject * iterator = PyObject_GetIter(args);
+    
+    // if args did not return an iterator (iterator protocol)
+    if (!iterator){
+        PyErr_SetString(PyExc_Exception, "Could not iterate over given args");        // we set the error message
+        return NULL;
+    }
+
+    // the current item
+    PyObject * currentItem;
+
+    //the position in the list
+    int position = 0;
+
+    // for every argument
+    while ((currentItem = PyIter_Next(iterator))) {
+        PyObject * currentPset = _pset_factory(currentItem);
+
+        if (!currentPset){
+            break;
+        }
+
+        // on ajoute le pset
+        psets[position] = (ProcSetObject *) currentPset;
+
+        position += 1;                           // we move on to the next interval
+        Py_DECREF(currentItem);             // we allow the current element to be gc'ed 
+    };
+
+    // we free the now useless iterator (even if an error occured)
+    Py_DECREF(iterator);  
+
+    ProcSetObject* other = NULL;
+    if (!PyErr_Occurred()){
+        other = _rec_merge(psets, 0, lengthOfArgs-1);
+    }
+
+    Py_XDECREF(currentItem);
+
+    for (int i = 0; i < position; i++){
+        ProcSetType.tp_dealloc((PyObject *)psets[i]);
+    }
+
+    return other;
+}
+
 static PyObject *
 _literals_core(ProcSetObject* self, PyObject *args, InplaceType function){
     // an iterator on the arguments
@@ -685,81 +753,17 @@ ProcSet_new(PyTypeObject *type, PyObject *Py_UNUSED(args), PyObject *Py_UNUSED(k
 static int
 ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
 {
-    Py_ssize_t lengthOfArgs = PySequence_Size(args);
     #ifdef PSET_DEBUG
-    printf("args : %p, size: %li\n", (void *) args, lengthOfArgs); // debug
+    printf("Calling init for pset @%p\n", (void *) self);
     #endif
 
-    
-    // if no args were given:
-    if (!args || !lengthOfArgs){
-        //return 0 as this can happen in the py implementation
-        return 0;
-    }
-
-    // une liste de pointeurs vers des psets
-    ProcSetObject * psets[lengthOfArgs];
-
-    // an iterator on args (args is a list of objects)
-    PyObject * iterator = PyObject_GetIter(args);
-    
-    // if args did not return an iterator (iterator protocol)
-    if (!iterator){
-        PyErr_SetString(PyExc_Exception, "Could not iterate over given args");        // we set the error message
-        return -1;
-    }
-
-    // the current item
-    PyObject * currentItem;
-
-    //the position in the list
-    int position = 0;
-
-    // for every argument
-    while ((currentItem = PyIter_Next(iterator))) {
-        PyObject * currentPset = _pset_factory(currentItem);
-
-        if (!currentPset){
-            break;
-        }
-
-        // on ajoute le pset
-        psets[position] = (ProcSetObject *) currentPset;
-
-        position += 1;                           // we move on to the next interval
-        Py_DECREF(currentItem);             // we allow the current element to be gc'ed 
-    };
-
-    // we free the now useless iterator (even if an error occured)
-    Py_DECREF(iterator);  
-
-    // si une erreur s'est produite lors de la création
+    ProcSetObject * other = _get_pset_from_args(args);
     if (PyErr_Occurred()){
-        // on autorise currentitem a se faire gc (il n'est pas gc quand il y a une erreur)
-        Py_DECREF(currentItem);
-        for (int i = 0; i < position; i++){
-            // xdecref -> decref as i'm not going over position
-            ProcSetType.tp_dealloc((PyObject *)psets[i]);
-        }
-
         return -1;
     }
 
-    ProcSetObject* other = _rec_merge(psets, 0, lengthOfArgs-1);
-    // we free our procsets
-    for (Py_ssize_t i = 0; i < position; i++){
-            ProcSetType.tp_dealloc((PyObject *)psets[i]);
-            //Py_DECREF((PyObject *)psets[i]);
-    }
-    
-    // we check if other is null, this check is done after the previous for cause this would cause a big memory leak;
-    if (!other){
-        // une erreur deja set par merge()
-        return -1;
-    }
-
-    self->_boundaries = other->_boundaries;
-    self->nb_boundary = other->nb_boundary;
+    self->_boundaries = other ? other->_boundaries : NULL;
+    self->nb_boundary = other ? other->nb_boundary : 0;
     return 0;
 }
 
