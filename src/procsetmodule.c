@@ -475,7 +475,7 @@ _pset_factory(PyObject * arg){
 }
 
 static PyObject *
-_literals_cores(ProcSetObject* self, PyObject *args, InplaceType function){
+_literals_core(ProcSetObject* self, PyObject *args, InplaceType function){
     // an iterator on the arguments
     PyObject* iterator = PyObject_GetIter(args);
 
@@ -528,13 +528,13 @@ _literals_cores(ProcSetObject* self, PyObject *args, InplaceType function){
 static PyObject *
 ProcSet_union(ProcSetObject *self, PyObject *args)
 {
-    return _literals_cores(self, args, ProcSet_or);
+    return _literals_core(self, args, ProcSet_or);
 }
 
 static PyObject *
 ProcSet_intersection(ProcSetObject *self, PyObject *args)
 {
-    return _literals_cores(self, args, ProcSet_and);
+    return _literals_core(self, args, ProcSet_and);
 
 }
 
@@ -542,14 +542,14 @@ static PyObject *
 ProcSet_difference(ProcSetObject *self, PyObject *args)
 {
 
-    return _literals_cores(self, args, ProcSet_sub);
+    return _literals_core(self, args, ProcSet_sub);
 
 }
 
 static PyObject *
 ProcSet_symmetricDifference(ProcSetObject *self, PyObject *args)
 {
-    return _literals_cores(self, args, ProcSet_xor);
+    return _literals_core(self, args, ProcSet_xor);
 
 }
 
@@ -737,24 +737,25 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
     if (PyErr_Occurred()){
         // on autorise currentitem a se faire gc (il n'est pas gc quand il y a une erreur)
         Py_DECREF(currentItem);
-
-        for (Py_ssize_t i = 0; i < position; i++){
+        for (int i = 0; i < position; i++){
             // xdecref -> decref as i'm not going over position
-            Py_DECREF(psets[i]);
+            ProcSetType.tp_dealloc((PyObject *)psets[i]);
         }
 
         return -1;
     }
 
     ProcSetObject* other = _rec_merge(psets, 0, lengthOfArgs-1);
-    if (!other){
-        // une erreur deja set par merge()
-        return -1;
-    }
-
+    // we free our procsets
     for (Py_ssize_t i = 0; i < position; i++){
             ProcSetType.tp_dealloc((PyObject *)psets[i]);
             //Py_DECREF((PyObject *)psets[i]);
+    }
+    
+    // we check if other is null, this check is done after the previous for cause this would cause a big memory leak;
+    if (!other){
+        // une erreur deja set par merge()
+        return -1;
     }
 
     self->_boundaries = other->_boundaries;
