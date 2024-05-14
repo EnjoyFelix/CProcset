@@ -46,7 +46,7 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
 
     // we allocate memory for the 
     copy->_boundaries = (pset_boundary_t *) PyMem_Malloc( copy->nb_boundary * sizeof(pset_boundary_t));
-    if (!self->_boundaries){
+    if (self->_boundaries && !copy->_boundaries){
         Py_DECREF((PyObject* )copy);        // we allow the copy to be gc'ed
 
         PyErr_NoMemory();
@@ -379,13 +379,11 @@ _pset_factory(PyObject * arg){
         pset_boundary_t lower = (pset_boundary_t) PyLong_AsLong(arg);
 
         // on alloue de la mémoire pour le pset
-        ProcSetObject * res = (ProcSetObject *) PyMem_Malloc(sizeof(ProcSetObject));
+        ProcSetObject * res = (ProcSetObject *) ProcSetType.tp_new(&ProcSetType, NULL, NULL);
         if (!res){
             PyErr_NoMemory();
             return NULL;
         }
-
-        ((PyObject * ) res)->ob_type = &ProcSetType;
 
         // on alloue de la mémoire pour l'interval et on vérifie que tout va bien
         res->_boundaries = (pset_boundary_t *) PyMem_Malloc(2 * sizeof(pset_boundary_t));
@@ -488,8 +486,8 @@ _get_pset_from_args(PyObject * args){
     #endif
 
     // if no args were given (valid case)
-    if (!lengthOfArgs){
-        return NULL; //TODO : BETTER RETURN
+    if (!lengthOfArgs){    
+        return (ProcSetObject *) ProcSetType.tp_new(&ProcSetType, NULL, NULL);
     }
 
     // une liste de pointeurs vers des psets
@@ -544,52 +542,13 @@ _get_pset_from_args(PyObject * args){
 
 static PyObject *
 _literals_core(ProcSetObject* self, PyObject *args, InplaceType function){
-    // an iterator on the arguments
-    PyObject* iterator = PyObject_GetIter(args);
-
-    // the current argument
-    PyObject* currentArg;
-
-    // the union of all the args, it won't be used outside this scope so it's ok to have it in the stack
-    ProcSetObject* pset_global = (ProcSetObject *) ProcSetType.tp_new(&ProcSetType, NULL, NULL);
-    pset_global->nb_boundary = 0;
-
-    while((currentArg = PyIter_Next(iterator))){
-        // if the current arg is not a procset
-        #ifdef PSET_DEBUG
-        printf("\tcurrentArg is of type %s\n", currentArg->ob_type->tp_name);
-        #endif
-        if (!Py_IS_TYPE(currentArg, &ProcSetType)){
-            // on crée un pset a partir de l'argument (soit un)
-            PyObject * currentPset = _pset_factory(currentArg); 
-
-            // si on n'a pas pu créer le pset
-            if (!currentPset){
-                Py_DECREF(currentArg);
-                Py_DECREF(iterator);
-                Py_DECREF(pset_global);
-
-                // on ne set pas d'exception car il y en a deja une
-                return NULL;   
-            }
-
-            //on ajoute les intervals dans le pset
-            ProcSet_ior(pset_global, currentPset);
-            Py_DECREF(currentArg);
-            ProcSetType.tp_dealloc(currentPset);
-            continue;
-        }
-        
-        // on ajoute les intervals dans le pset
-        ProcSet_ior(pset_global, currentArg);
-        Py_DECREF(currentArg);
+    ProcSetObject * other = _get_pset_from_args(args);
+    if (!other){
+        return NULL;
     }
-    Py_DECREF(iterator);
+    PyObject * result = function(self, (PyObject * ) other);
 
-    //moved this up to dealloc pset;
-    PyObject * result = function(self, (PyObject * ) pset_global);
-
-    ProcSetType.tp_dealloc((PyObject *) pset_global);
+    ProcSetType.tp_dealloc((PyObject *) other);
     return result;
 }
 
@@ -609,9 +568,7 @@ ProcSet_intersection(ProcSetObject *self, PyObject *args)
 static PyObject *
 ProcSet_difference(ProcSetObject *self, PyObject *args)
 {
-
     return _literals_core(self, args, ProcSet_sub);
-
 }
 
 static PyObject *
@@ -758,12 +715,12 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
     #endif
 
     ProcSetObject * other = _get_pset_from_args(args);
-    if (PyErr_Occurred()){
+    if (!other){
         return -1;
     }
 
-    self->_boundaries = other ? other->_boundaries : NULL;
-    self->nb_boundary = other ? other->nb_boundary : 0;
+    self->_boundaries = other->_boundaries;
+    self->nb_boundary = other->nb_boundary;
     return 0;
 }
 
