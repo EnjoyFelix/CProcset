@@ -558,48 +558,32 @@ static PyObject *
 _update_core(ProcSetObject *self, PyObject *args, InplaceType UpdateType){
         
     // the previous function does the heavy lifting for that one
-    ProcSetObject * result = (ProcSetObject *) UpdateType(self, args);
+    PyObject * result = UpdateType(self, args);
 
-    // if an error occured
-    if (!result){
-        return NULL;         // we just break, no need to tĥrow anything since the previous function call already does that
+    // you get no result when an error occures, so we check for errors
+    if (!result || Py_Is(result, Py_NotImplemented)){
+        return result;
     }
+    
+    Py_ssize_t nb_elements = ((ProcSetObject * ) result)->nb_boundary;
 
-    // if our list is smaller than the result's list
-    if (self->nb_boundary < result->nb_boundary){
-        pset_boundary_t * temp = PyMem_Realloc(self->_boundaries, result->nb_boundary * sizeof(pset_boundary_t));
-
-        if (!temp){
-            //we dont check for previous py errors since they would have been caught in the "if !result"
-            PyErr_NoMemory();   // return error
-            Py_DECREF(result);  // allow result to be gc'ed
-            return NULL;
-        }
-
-        self->_boundaries = temp;        
-    } 
-    // if our list is bigger than the result's list
-    else if (self->nb_boundary > result->nb_boundary){
-        // we release the allocated memory for self->boundaries
-        // we cannot realloc here because data was surely written, so realloc will fail
-        PyMem_Free(self->_boundaries);
-
-        // we allocate the amount of memory
-        self->_boundaries = (pset_boundary_t * ) PyMem_Malloc(result->nb_boundary * sizeof(pset_boundary_t));
+    // self is probably not the right size
+    if (!pset_resize(self, nb_elements)){
+        return NULL;    // the error message is already set
     }
-    //we don't do anything if the sizes are equals
+    
+    // we copy every element of result in self
+    pset_copy((ProcSetObject * ) result, self, nb_elements);
 
-    //we copy every interval;
-    for (Py_ssize_t i = 0; i < result->nb_boundary; i++){
-        self->_boundaries[i] = result->_boundaries[i];
-    }
+    // we set the right size for self
+    self->nb_boundary = nb_elements;
 
-    self->nb_boundary = result->nb_boundary;
-
-    // we can't return self as is since python will think it came out of this function.
-    // this would cause a segmentation fault as every reference to self would become null.
-    // So we return result here as it's already a copy of result and can be gc'ed without any issue
-    return (PyObject *) result;
+/*     // we return result as it's a copy of self and is not referrenced by anything
+    return result; */
+    
+    Py_DECREF(result);
+    Py_INCREF(self);        // it needs to return self for parity
+    return (PyObject *) self; 
 }
 
 // returns the intersection and updates self
@@ -869,9 +853,13 @@ ProcSet_str(ProcSetObject *self)
 static Py_ssize_t
 ProcSequence_length(ProcSetObject* self){
     //Si l'objet n'existe pas 
-    if (!self || !self->_boundaries){
+    if (!self){
         PyErr_SetString(PyExc_Exception, "self is null !");
         return -1;
+    } 
+    // early return: length is zero if the list is null
+    else if(!self->_boundaries){
+        return 0;
     }
 
     // somme de la taille de tout les intervals de la structure
