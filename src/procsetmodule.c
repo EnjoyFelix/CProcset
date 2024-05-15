@@ -652,7 +652,7 @@ static PyObject*
 ProcSet_min(ProcSetObject *self, void* Py_UNUSED(v)){
     // if null
     if (!self || !self->_boundaries){
-        //TODO: set an exception
+        PyErr_SetString(PyExc_ValueError, "Empty ProcSet");
         return NULL;
     }
 
@@ -665,7 +665,7 @@ static PyObject*
 ProcSet_max(ProcSetObject *self, void * Py_UNUSED(v)){
     // if null
     if (!self || !self->_boundaries){
-        //TODO: set an exception
+        PyErr_SetString(PyExc_ValueError, "Empty ProcSet");
         return NULL;
     }
 
