@@ -891,17 +891,18 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
 
     // easiest case: the value is greater than the last proc or lower than the first proc
     if (!self->_boundaries || value < *(self->_boundaries) || value >= self->_boundaries[self->nb_boundary - 1]){
-        return 0;
+        return false;
     }
 
     // if not, we're going to need to go through the intervals
     int itv = 0;
-
-    //while we still have intervals and the value is lower than the lower bound of the current interval
-    while (itv < self->nb_boundary && self->_boundaries[itv] < value){
+    
+    //while we still have intervals to go through and the value is bigger than the upper bound of the current interval
+    while (itv < self->nb_boundary && self->_boundaries[itv+1] <= value){        // <= cause !>
         itv += 2;
     }
-    return self->_boundaries[itv+1] > value;        // the value is in the set if it's lower than the upper bound
+
+    return self->_boundaries[itv] <= value;        // the value is in the set if it's bigger than the lower bound
 } 
 
 // Liste des methodes qui permettent a procset d'etre utilisé comme un objet sequence
