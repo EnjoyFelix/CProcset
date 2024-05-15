@@ -65,12 +65,6 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
 static PyObject *
 ProcSet_aggregate(ProcSetObject *self, PyObject *Py_UNUSED(args))
 {
-    // self should not be empty
-    if (!self->nb_boundary){
-        PyErr_SetString(PyExc_AssertionError, "self is empty !");
-        return NULL;
-    }
-    
     // the resulting procset
     ProcSetObject *result = PyObject_New(ProcSetObject, &ProcSetType);
     if (!result) {
@@ -84,12 +78,15 @@ ProcSet_aggregate(ProcSetObject *self, PyObject *Py_UNUSED(args))
         Py_DECREF(result);
         return NULL;
     }
+
+    if (self->_boundaries){
+        result->_boundaries[0] = self->_boundaries[0];
+        result->_boundaries[1] = self->_boundaries[self->nb_boundary-1]; 
+        result->nb_boundary = 2;
+    } else {
+        result->nb_boundary = 0;
+    }
     
-    result->_boundaries[0] = self->_boundaries[0];
-    result->_boundaries[1] = self->_boundaries[self->nb_boundary-1]; 
-
-    result->nb_boundary = 2;
-
     return (PyObject *) result;
 
 }
@@ -411,8 +408,8 @@ _parse_list(PyObject * arg){
     Py_ssize_t nbrOfelements = PySequence_Size(arg);
 
     // we check for the number of elements in the iterable
-    if (nbrOfelements > 2){
-        PyErr_SetString(PyExc_TypeError, "TypeError: Incompatible iterable, expected an iterable of exactly 2 int");
+    if (!nbrOfelements ||nbrOfelements > 2 || strcmp(arg->ob_type->tp_name, "str") == 0){
+        PyErr_SetString(PyExc_TypeError, "Incompatible iterable, expected an iterable of exactly 2 int");
         return NULL;
     }
 
@@ -437,7 +434,7 @@ _parse_list(PyObject * arg){
 
     while ((currentObject = PyIter_Next(iterator))){
         if (!PyNumber_Check(currentObject)){
-            PyErr_SetString(PyExc_TypeError, "Wrong type, expected a value of type int !");
+            PyErr_SetString(PyExc_TypeError, "Incompatible iterable, expected an iterable of exactly 2 int");
             break;
         }
         res->_boundaries[i] = (pset_boundary_t) PyLong_AsLong(currentObject) + (outer ? 1 : 0);
@@ -464,8 +461,6 @@ _parse_list(PyObject * arg){
 
 static PyObject* 
 _pset_factory(PyObject * arg){
-    printf(!arg ? "arg is null !\n": "arg is of type %s\n", arg->ob_type->tp_name);
-
     // if arg est un nombre:
     if (PyNumber_Check(arg)){
         return (PyObject *) _parse_integer(arg);
@@ -799,16 +794,20 @@ ProcSet_str(ProcSetObject *self)
     int i = 0;
     // for every pair of boundaries
     while(i < self->nb_boundary){
+        if (i != 0){
+            strcat(bounds_string + strlen(bounds_string), " ");
+        };
+
         // a and b -> [a, b[
         pset_boundary_t a = self->_boundaries[i];
         pset_boundary_t b = (self->_boundaries[i+1]) -1; //b -1 as the interval is half opened 
 
         if (a == b){
             //single number
-            sprintf(bounds_string + strlen(bounds_string), "%u ", a);
+            sprintf(bounds_string + strlen(bounds_string), "%u", a);
         } else {
             //interval
-            sprintf(bounds_string + strlen(bounds_string), "%u-%u ",  a,b);
+            sprintf(bounds_string + strlen(bounds_string), "%u-%u",  a,b);
         }
 
         i+= 2;

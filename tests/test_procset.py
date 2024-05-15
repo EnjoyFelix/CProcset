@@ -131,8 +131,8 @@ class TestNew:
 
     @pytest.mark.parametrize('iterable', INCOMPATIBLE_ITER_TYPE_TESTCASES, ids=repr)
     def test_incompatible_iter_type(self, iterable):
-        #pattern = r'^ProcInt\(\) argument (inf|sup) must be int$'
-        pattern = 'Wrong argument type !'
+                                #pattern = r'^ProcInt\(\) argument (inf|sup) must be int$'
+        pattern = 'Incompatible iterable, expected an iterable of exactly 2 int'
         with pytest.raises(TypeError, match=pattern):
             ProcSet(iterable)
 
