@@ -34,12 +34,8 @@ ProcSet_intervals(ProcSetObject *self, void * Py_UNUSED(args)){
 // returns a shallow copy of the object
 PyObject * 
 ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
-
-    // ProcSet object type
-    PyTypeObject* type = Py_TYPE((PyObject *) self);            //pbbly not a ref to a new object
-
     // another object
-    ProcSetObject* copy = (ProcSetObject *) type->tp_alloc(type, 0);
+    ProcSetObject* copy = (ProcSetObject *) ProcSetType.tp_alloc(&ProcSetType, 0);
 
     // we copy the nbr of boundaries
     copy->nb_boundary = self->nb_boundary;
@@ -59,6 +55,13 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
     }
 
     return (PyObject *) copy;
+}
+
+// returns a deep (yet shallow) copy of the object
+static PyObject *
+ProcSet_deepcopy(ProcSetObject *self, PyObject * args){
+    // args is here to act as "memo, but it's useless here"
+    return ProcSet_copy(self, args);
 }
 
 // returns the convex hull of the procset
@@ -1090,7 +1093,7 @@ static PyMethodDef ProcSet_methods[] = {
     {"clear", (PyCFunction) ProcSet_clear, METH_NOARGS, "Empties the ProcSet, removing all elements from it."},
     {"copy", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
     {"__copy__", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
-    {"__deepcopy__", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new copy of the ProcSet."},
+    {"__deepcopy__", (PyCFunction) ProcSet_deepcopy, METH_VARARGS, "Returns a new copy of the ProcSet."},
     {"intervals", (PyCFunction) ProcSet_intervals, METH_NOARGS, "Returns an iterator over the intervals of the ProcSet in increasing order."},
     {"count", (PyCFunction) ProcSet_count, METH_NOARGS, "Returns the number of disjoint intervals in the ProcSet."},
     {"iscontiguous", (PyCFunction) ProcSet_iscontiguous, METH_NOARGS, "Returns ``True`` if the ProcSet is made of a unique interval."},
