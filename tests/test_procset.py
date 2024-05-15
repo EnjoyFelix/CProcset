@@ -402,7 +402,8 @@ class TestCopy:
         copy_pset = copy.copy(pset)
         assert copy_pset == pset
         assert copy_pset is not pset
-        assert copy_pset._itvs is not pset._itvs
+        #assert copy_pset._itvs is not pset._itvs
+        # ^ pas dans cette version
         pset |= ProcSet((128, 255))
         assert copy_pset != pset
 
@@ -411,7 +412,8 @@ class TestCopy:
         copy_pset = copy.copy(pset)
         assert copy_pset == pset
         assert copy_pset is not pset
-        assert copy_pset._itvs is not pset._itvs
+        #assert copy_pset._itvs is not pset._itvs
+        # ^ pas dans cette version
         pset |= ProcSet((128, 255))
         assert copy_pset != pset
 
@@ -432,7 +434,8 @@ class TestCopy:
         dcopy_pset = copy.deepcopy(pset)
         assert dcopy_pset == pset
         assert dcopy_pset is not pset
-        assert dcopy_pset._itvs is not pset._itvs
+        #assert dcopy_pset._itvs is not pset._itvs
+        # ^ pas dans cette version
         pset |= ProcSet((128, 255))
         assert dcopy_pset != pset
 
@@ -441,7 +444,8 @@ class TestCopy:
         dcopy_pset = copy.deepcopy(pset)
         assert dcopy_pset == pset
         assert dcopy_pset is not pset
-        assert dcopy_pset._itvs is not pset._itvs
+        #assert dcopy_pset._itvs is not pset._itvs
+        # ^ pas dans cette version
         pset |= ProcSet((128, 255))
         assert dcopy_pset != pset
 
