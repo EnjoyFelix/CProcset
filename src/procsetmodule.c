@@ -91,6 +91,14 @@ ProcSet_aggregate(ProcSetObject *self, PyObject *Py_UNUSED(args))
 
 }
 
+// removes every element of the pset
+static PyObject *
+ProcSet_clear(ProcSetObject *self, PyObject *Py_UNUSED(args)){
+    PyMem_Free(self->_boundaries);
+    self->nb_boundary = 0;
+
+    Py_RETURN_NONE;
+}
 
 
 // MERGE (Core function)
@@ -1079,6 +1087,7 @@ static PyMethodDef ProcSet_methods[] = {
     "The convex hull of a non-empty ProcSet is the contiguous ProcSet made\n"
     "of the smallest unique interval containing all intervals from the\n"
     "non-empty ProcSet."},
+    {"clear", (PyCFunction) ProcSet_clear, METH_NOARGS, "Empties the ProcSet, removing all elements from it."},
     {"copy", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
     {"__copy__", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
     {"__deepcopy__", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new copy of the ProcSet."},
