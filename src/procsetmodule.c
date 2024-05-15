@@ -408,7 +408,12 @@ _parse_list(PyObject * arg){
     Py_ssize_t nbrOfelements = PySequence_Size(arg);
 
     // we check for the number of elements in the iterable
-    if (!nbrOfelements ||nbrOfelements > 2 || strcmp(arg->ob_type->tp_name, "str") == 0){
+    // Valide si:
+    //  - non vide
+    //  - pas plus de 2 elements
+    //  - pas un string
+    //  - pas un tuple de taille 1
+    if (!nbrOfelements || nbrOfelements > 2 || strcmp(arg->ob_type->tp_name, "str") == 0 || (strcmp(arg->ob_type->tp_name, "tuple") == 0 && nbrOfelements != 2)){
         PyErr_SetString(PyExc_TypeError, "Incompatible iterable, expected an iterable of exactly 2 int");
         return NULL;
     }
