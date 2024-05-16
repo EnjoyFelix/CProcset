@@ -872,13 +872,10 @@ ProcSequence_length(ProcSetObject* self){
 static PyObject* ProcSequence_getItem(ProcSetObject *self, Py_ssize_t pos){
     //on vérifie que l'objet est atteignable (!NULL, pos < len), pas besoin de vérifier pos > 0 car pos négative -> positive = len + pos
     Py_ssize_t len = ProcSequence_length(self);
-    if (len <= 0L){
+    if (len <= 0L  || pos < 0 || len <= pos){
         //trying to access null
         //can't throw an error because it doesn't get caught by next :/
-        return NULL;
-    } else if (len <= pos){
-        //PyErr_SetString(PyExc_Exception, "Trying to access out of bound position !");
-        //can't throw an error because it doesn't get caught by next :/
+        PyErr_SetString(PyExc_IndexError, "ProcSet index out of range");
         return NULL;
     }
 
