@@ -493,9 +493,10 @@ _pset_factory(PyObject * arg){
         
     }
 
+    //Py_RETURN_NOTIMPLEMENTED;
+
     PyErr_SetString(PyExc_TypeError, "Expected a number, ProcSet or list");
-    return NULL;
-    
+    return NULL;    
 }
 
 // returns a single procset made with the given args
@@ -538,7 +539,8 @@ _get_pset_from_args(PyObject * args){
     while ((currentItem = PyIter_Next(iterator))) {
         PyObject * currentPset = _pset_factory(currentItem);
 
-        if (!currentPset){
+        if (!currentPset/*  || Py_NotImplemented == currentPset */){
+            //Py_XDECREF(currentPset);
             break;
         }
 
@@ -1024,7 +1026,7 @@ ProcSet_isdisjoint(ProcSetObject *self, PyObject * args){
 static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int operation){
     //we compare the types:
     if (!Py_IS_TYPE(_other, Py_TYPE((PyObject*)self))){
-        return Py_False;
+        Py_RETURN_NOTIMPLEMENTED;
     }
 
     //explicit cast
