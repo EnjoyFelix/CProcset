@@ -424,14 +424,14 @@ _parse_list(PyObject * arg){
     //  - pas plus de 2 elements
     //  - pas un string
     //  - pas un tuple de taille 1
-    if (!nbrOfelements || nbrOfelements > 2 || strcmp(arg->ob_type->tp_name, "str") == 0 || (strcmp(arg->ob_type->tp_name, "tuple") == 0 && nbrOfelements != 2)){
+    if (nbrOfelements > 2 || strcmp(arg->ob_type->tp_name, "str") == 0 || (strcmp(arg->ob_type->tp_name, "tuple") == 0 && nbrOfelements == 1)){
         PyErr_SetString(PyExc_TypeError, "Incompatible iterable, expected an iterable of exactly 2 int");
         return NULL;
     }
 
     ProcSetObject * res = (ProcSetObject *) ProcSetType.tp_new(&ProcSetType, NULL, NULL);
-    if (!res){
-        return NULL;
+    if (!res || !nbrOfelements){
+        return res;
     }
 
     // on alloue de la mémoire pour l'interval et on vérifie que tout va bien
