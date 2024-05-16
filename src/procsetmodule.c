@@ -424,7 +424,7 @@ _parse_list(PyObject * arg){
     //  - pas plus de 2 elements
     //  - pas un string
     //  - pas un tuple de taille 1
-    if (nbrOfelements > 2 || strcmp(arg->ob_type->tp_name, "str") == 0 || (strcmp(arg->ob_type->tp_name, "tuple") == 0 && nbrOfelements == 1)){
+    if (nbrOfelements > 2 || strcmp(arg->ob_type->tp_name, "str") == 0 || (strcmp(arg->ob_type->tp_name, "tuple") == 0 && nbrOfelements < 2)){
         PyErr_SetString(PyExc_TypeError, "Incompatible iterable, expected an iterable of exactly 2 int");
         return NULL;
     }
@@ -754,6 +754,72 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
 
 
 
+static PyObject *
+_format(ProcSetObject * self, const char insep, const char outsep){
+    // early termination if the pset is empty
+    if (!self->nb_boundary){
+        return PyUnicode_FromString("");
+    }
+
+    char value[64] = "";            // a buffer to hold the representation of the interval
+    bool inner = false;             // things are different after the first occurence and i was to lazy to write it another way
+
+    PyObject * dest_bytes = PyBytes_FromString("");
+    for (Py_ssize_t i = 0; i < self->nb_boundary && dest_bytes; i+=2){
+
+        // are we on the first interval ?
+        if (i!= 0){
+            // if not, we add the outsep rn, doing such avoid ending the string with the outsep
+            value[0] = outsep;
+            inner = true;
+        }
+
+        // a and b -> [a, b[
+        pset_boundary_t a = self->_boundaries[i];
+        pset_boundary_t b = (self->_boundaries[i+1]) -1; //b -1 as the interval is half opened 
+
+        if (a == b){
+            //single value
+            sprintf(value + inner, "%u", a);
+        } else {
+            //interval
+            sprintf(value + inner, "%u%c%u",  a, insep, b);
+        }
+
+        PyObject * value_bytes = PyBytes_FromString(value);     // a ref to a new byte object
+        PyBytes_Concat(&dest_bytes, value_bytes);               // 
+
+        Py_DECREF(value_bytes);
+        // idk if i need to clear value ?
+    } 
+
+    // When an error occurs, dest_byte becomes null and an error is set
+    if (!dest_bytes){
+        return NULL;
+    } 
+
+    const char * result_str = PyBytes_AS_STRING(dest_bytes);    // doesn't need to be dealloced -> https://docs.python.org/3/c-api/bytes.html
+    PyObject * result = PyUnicode_FromString(result_str);
+    Py_DECREF(dest_bytes);
+    return result;
+}
+
+// __format__
+static PyObject*
+ProcSet_format(ProcSetObject * self, PyObject * args){
+    const char *input_str;  // a string that will receive the parsed value, chepa si je dois le free celui la
+
+    // we try to parse the args, the parsed string should be of length 2
+    if (!PyArg_ParseTuple(args, "s", &input_str) || !input_str || strlen(input_str) != 2) {
+        // if we fail, we set an error and return null
+        PyErr_SetString(PyExc_ValueError, "Invalid format specifier");
+        return NULL; 
+    }
+
+    // on apelle _format avec les separateurs
+    return _format(self, input_str[0], input_str[1]);
+}
+
 // __repr__
 static PyObject *
 ProcSet_repr(ProcSetObject *self){
@@ -795,50 +861,9 @@ ProcSet_repr(ProcSetObject *self){
 // __str__
 static PyObject *
 ProcSet_str(ProcSetObject *self)
-{ 
-    //The object we're going to return;
-    PyObject *str_obj = NULL;
-  
-    // an empty string that will be filled with "a b-c ..."
-    char *bounds_string = (char * ) PyMem_Malloc((sizeof(char) * STR_BUFFER_SIZE));
-    if (!bounds_string){
-        PyErr_SetString(PyExc_BufferError, "Not enough memory !");
-        return NULL;
-    }
-    
-    bounds_string[0] = '\0';
-
-
-    int i = 0;
-    // for every pair of boundaries
-    while(i < self->nb_boundary){
-        if (i != 0){
-            strcat(bounds_string + strlen(bounds_string), " ");
-        };
-
-        // a and b -> [a, b[
-        pset_boundary_t a = self->_boundaries[i];
-        pset_boundary_t b = (self->_boundaries[i+1]) -1; //b -1 as the interval is half opened 
-
-        if (a == b){
-            //single number
-            sprintf(bounds_string + strlen(bounds_string), "%u", a);
-        } else {
-            //interval
-            sprintf(bounds_string + strlen(bounds_string), "%u-%u",  a,b);
-        }
-
-        i+= 2;
-    }
-
-    *(bounds_string + strlen(bounds_string)) = '\0';
-
-    // Transform to PyObject Unicode
-    str_obj = PyUnicode_FromString(bounds_string);
-
-    //freeing the allocated memory
-    PyMem_Free(bounds_string);
-    return str_obj;
+{
+    // this function is just an alias for ProcSet().__format__("- ");
+    return _format(self, '-', ' ');
 }
 
 
@@ -1089,6 +1114,7 @@ static PyMethodDef ProcSet_methods[] = {
     "The convex hull of a non-empty ProcSet is the contiguous ProcSet made\n"
     "of the smallest unique interval containing all intervals from the\n"
     "non-empty ProcSet."},
+    {"__format__", (PyCFunction) ProcSet_format, METH_VARARGS, ""},
     {"clear", (PyCFunction) ProcSet_clear, METH_NOARGS, "Empties the ProcSet, removing all elements from it."},
     {"copy", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
     {"__copy__", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
