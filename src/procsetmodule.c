@@ -953,12 +953,12 @@ PySequenceMethods ProcSequenceMethods = {
     0,                                          // sq_concat    __add__
     0,                                          // sq_repeat    __mul__
     (ssizeargfunc) ProcSequence_getItem,        // sq_item      __getitem__
-    0,                                          // sq_ass_item   __setitem__ / __delitem__
+    0,                                          // was_sq_slice
+    0,                                          // sq_ass_item   __setitem__ / __delitem__ 
+    0,                                          // was_sq_ass_slice
+    (objobjproc) ProcSequence_contains,         // sq_contains  __contains__
     0,                                          // sq_inplace_concat
     0,                                          // sq_inplace_repeat
-    (objobjproc) ProcSequence_contains,         // sq_contains  __contains__
-    0,                                          // ?
-    0,                                          // ?
 };
 
 
@@ -1146,6 +1146,8 @@ static PyTypeObject ProcSetType = {
     .tp_as_sequence = &ProcSequenceMethods,                 // pointer to the sequence object
     .tp_richcompare = (richcmpfunc) ProcSet_richcompare,    // __le__, __eq__...
     .tp_as_number = &ProcSet_number_methods,                // __and__, __or__ ...
+    .tp_iter = (getiterfunc) PySeqIter_New,
+    .tp_iternext = (iternextfunc) PyIter_Next,
 };
 
 // basic Module definition
