@@ -350,6 +350,33 @@ static PyNumberMethods ProcSet_number_methods = {
     0, // binaryfunc nb_inplace_matrix_multiply;
 };
 
+// returns NULL or Py_NotImplemented based on the error type
+static PyObject *
+_handle_err_notimpl(){
+    // On récupère les informations de l'exception, TODO: utiliser PyErr_GetRaisedException (python 3.12)
+    PyObject * type, *obj, *traceback;
+    PyErr_Fetch(&type, &obj, &traceback);       // deprecated
+
+    // early termination si l'erreur n'était pas set
+    if (!type){
+        return NULL;
+    }
+
+    // on retourne NotImplemented si Obj l'est
+    if (Py_NotImplemented == obj){
+        // on libère nos references fortes 
+        Py_DECREF(type);
+        Py_XDECREF(traceback);      // xdecref car il peut etre null independament
+
+        PyErr_Clear();
+        return obj;
+    } 
+
+    // sinon on libère la ref et on retourne l'erreur précédente
+    PyErr_Restore(type, obj, traceback);        // Py_DEPRECATED
+    return NULL;
+}
+
 // merge de procset récursif DPR
 static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t min, Py_ssize_t max){
     #ifdef PSET_DEBUG
@@ -424,7 +451,7 @@ _parse_list(PyObject * arg){
     //  - pas plus de 2 elements
     //  - pas un string
     //  - pas un tuple de taille 1
-    if (nbrOfelements > 2 || strcmp(arg->ob_type->tp_name, "str") == 0 || (strcmp(arg->ob_type->tp_name, "tuple") == 0 && nbrOfelements < 2)){
+    if (nbrOfelements > 2 || strcmp(arg->ob_type->tp_name, "str") == 0 ||(strcmp(arg->ob_type->tp_name, "tuple") == 0 && nbrOfelements == 1)){
         PyErr_SetString(PyExc_TypeError, "Incompatible iterable, expected an iterable of exactly 2 int");
         return NULL;
     }
@@ -495,7 +522,8 @@ _pset_factory(PyObject * arg){
 
     //Py_RETURN_NOTIMPLEMENTED;
 
-    PyErr_SetString(PyExc_TypeError, "Expected a number, ProcSet or list");
+    //PyErr_SetString(PyExc_TypeError, "Expected a number, ProcSet or list");
+    PyErr_SetObject(PyExc_TypeError, Py_NotImplemented);
     return NULL;    
 }
 
@@ -997,15 +1025,9 @@ static int _sub_super(ProcSetObject * self, ProcSetObject * other){
 // issubset
 static PyObject *
 ProcSet_issubset(ProcSetObject *self, PyObject * args){
-    //TODO: This function should be able to take list and single values as args
-
-    //the other set
-    ProcSetObject* other;
-
-    // we try to parse another procset for the list
-    if (!PyArg_ParseTuple(args, "O!", Py_TYPE(self), &other)){
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
+    ProcSetObject * other = _get_pset_from_args(args);
+    if (!other){
+        return _handle_err_notimpl();
     }
 
     return PyBool_FromLong(_sub_super(self, other));
@@ -1014,15 +1036,9 @@ ProcSet_issubset(ProcSetObject *self, PyObject * args){
 // issubset
 static PyObject *
 ProcSet_issuperset(ProcSetObject *self, PyObject * args){
-    //TODO: This function should be able to take list and single values as args
-
-    //the other set
-    ProcSetObject* other;
-
-    // we try to parse another procset for the list
-    if (!PyArg_ParseTuple(args, "O!", Py_TYPE(self), &other)){
-        PyErr_SetString(PyExc_TypeError, "Invalid operand. Expected a ProcSet object.");
-        return NULL;
+    ProcSetObject * other = _get_pset_from_args(args);
+    if (!other){
+        return _handle_err_notimpl();
     }
 
     return PyBool_FromLong(_sub_super(other, self));
@@ -1033,7 +1049,7 @@ static PyObject *
 ProcSet_isdisjoint(ProcSetObject *self, PyObject * args){
     ProcSetObject * other = _get_pset_from_args(args);
     if (!other){
-        return NULL;
+        return _handle_err_notimpl();
     }
 
     ProcSetObject * intersection = (ProcSetObject* ) ProcSet_and(self, (PyObject*) other);
@@ -1146,8 +1162,8 @@ static PyTypeObject ProcSetType = {
     .tp_as_sequence = &ProcSequenceMethods,                 // pointer to the sequence object
     .tp_richcompare = (richcmpfunc) ProcSet_richcompare,    // __le__, __eq__...
     .tp_as_number = &ProcSet_number_methods,                // __and__, __or__ ...
-    .tp_iter = (getiterfunc) PySeqIter_New,
-    .tp_iternext = (iternextfunc) PyIter_Next,
+    .tp_iter = (getiterfunc) PySeqIter_New,                 // __iter__
+    .tp_iternext = (iternextfunc) PyIter_Next,              // __next__
 };
 
 // basic Module definition
