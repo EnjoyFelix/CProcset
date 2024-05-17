@@ -807,18 +807,19 @@ _format(ProcSetObject * self, const char insep, const char outsep){
 // __format__
 static PyObject*
 ProcSet_format(ProcSetObject * self, PyObject * args){
-    const char *input_str = "- ";  // a string that will receive the parsed value, chepa si je dois le free celui la
-    // ^ if args is empty, format == str
-
+    const char *input_str;  // a string that will receive the parsed value, chepa si je dois le free celui la
+    Py_ssize_t input_length;
+ 
     // we try to parse the args, the parsed string should be of length 2
-    if (PyTuple_Size(args) && (!PyArg_ParseTuple(args, "s", &input_str) || !input_str || strlen(input_str) != 2)) {
+    if (PyTuple_Size(args) && (!PyArg_ParseTuple(args, "s#", &input_str, &input_length) || (input_length != 0 && input_length != 2))) {
+
         // if we fail, we set an error and return null
         PyErr_SetString(PyExc_ValueError, "Invalid format specifier");
         return NULL; 
     }
-   
+
     // on apelle _format avec les separateurs
-    return _format(self, input_str[0], input_str[1]);
+    return input_length ? _format(self, input_str[0], input_str[1]) : _format(self, '-', ' ');
 }
 
 // __repr__
