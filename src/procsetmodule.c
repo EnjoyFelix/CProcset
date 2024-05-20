@@ -40,10 +40,10 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
     // we copy the nbr of boundaries
     copy->nb_boundary = self->nb_boundary;
 
-    // we allocate memory for the 
+    // we allocate memory to store the boundaries 
     copy->_boundaries = (pset_boundary_t *) PyMem_Malloc( copy->nb_boundary * sizeof(pset_boundary_t));
     if (self->_boundaries && !copy->_boundaries){
-        Py_DECREF((PyObject* )copy);        // we allow the copy to be gc'ed
+        Py_DECREF((PyObject* )copy);        // we allow the copy to be gc'ed TODO: use dealloc
 
         PyErr_NoMemory();
         return NULL;
@@ -60,7 +60,7 @@ ProcSet_copy(ProcSetObject *self, void * Py_UNUSED(args)){
 // returns a deep (yet shallow) copy of the object
 static PyObject *
 ProcSet_deepcopy(ProcSetObject *self, PyObject * args){
-    // args is here to act as "memo, but it's useless here"
+    // args is here to act as "memo", but it's useless here
     return ProcSet_copy(self, args);
 }
 
@@ -107,12 +107,12 @@ ProcSet_clear(ProcSetObject *self, PyObject *Py_UNUSED(args)){
 // MERGE (Core function)
 static PyObject*
 merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
-    PyTypeObject * psettype = ((PyObject*) lpset)->ob_type;
+    PyTypeObject * psettype = ((PyObject*) lpset)->ob_type;     //TODO : replace with &ProcSetType
 
     //the potential max nbr of intervals
     Py_ssize_t maxBound = lpset->nb_boundary + rpset->nb_boundary;
 
-    //the resulting
+    //the resulting procset
     ProcSetObject* result = (ProcSetObject *) psettype->tp_new(psettype, NULL, NULL);
 
     //we take more than we should, that's ok
@@ -177,15 +177,15 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
         head = (lhead < rhead) ? lhead : rhead;               
     }
 
-    // if we had allocated the right amount of memory
+    // early termination if we had allocated the right amount of memory
     if (result->nb_boundary == maxBound){
         return (PyObject *) result;
     }
 
-    // we free the excess memory
+    // we free the excess memory TODO: is  the +1 here usefull ?
     pset_boundary_t* bounds = PyMem_Realloc(result->_boundaries, (result->nb_boundary + 1) * sizeof(pset_boundary_t));
 
-    // bounds will be null if realloc failed (yet the previous pointer will remain valid, se we have to check)
+    // bounds will be null if realloc failed (but the previous pointer will remain valid, se we have to check)
     if (bounds){
         result->_boundaries = bounds;
     }
@@ -193,6 +193,7 @@ merge(ProcSetObject* lpset,ProcSetObject* rpset, MergePredicate operator){
     return (PyObject *) result;
 }
 
+// A method with the shared logic of the inplace functions
 static PyObject *
 _inplace_core(ProcSetObject * self, PyObject * other, InplaceType fonction){
     // we get the result
@@ -200,12 +201,13 @@ _inplace_core(ProcSetObject * self, PyObject * other, InplaceType fonction){
     
     // you get no result when an error occures, so we check for errors
     if (!result || Py_Is(result, Py_NotImplemented)){
+        // TODO: this returns null on NotImplemented, this was not part of the tests. 
         return result;
     }
     
     Py_ssize_t nb_elements = ((ProcSetObject * ) result)->nb_boundary;
 
-    // self is probably not the right size
+    // self is probably not the right size so we resize it
     if (!pset_resize(self, nb_elements)){
         return NULL;    // the error message is already set
     }
@@ -216,11 +218,9 @@ _inplace_core(ProcSetObject * self, PyObject * other, InplaceType fonction){
     // we set the right size for self
     self->nb_boundary = nb_elements;
 
-/*     // we return result as it's a copy of self and is not referrenced by anything
-    return result; */
     
     Py_DECREF(result);
-    Py_INCREF(self);        // it needs to return self for parity
+    Py_INCREF(self);        // it needs to return self for parity reason (would cause tests that uses "IS" to fail)
     return (PyObject *) self;
 }
 
@@ -372,7 +372,7 @@ _handle_err_notimpl(){
         return obj;
     } 
 
-    // sinon on libère la ref et on retourne l'erreur précédente
+    // sinon on retourne l'erreur précédente
     PyErr_Restore(type, obj, traceback);        // Py_DEPRECATED
     return NULL;
 }
@@ -400,7 +400,7 @@ static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t min, Py_ssiz
     ProcSetObject * result = (ProcSetObject *) merge(left, right, bitwiseOr);
 
     // on autorise les deux a se faire GC car merge retourne un nouveau PSET 
-    // (c'est pour ca que je retourne une copy dans le cas trivial, sinon je lose un truc qui m'appartient; )
+    // (c'est pour ca que je retourne une copy dans le cas trivial, sinon je perd une reference qui m'appartient )
     ProcSetType.tp_dealloc((PyObject * ) left);
     ProcSetType.tp_dealloc((PyObject * ) right);
     return result; 
@@ -523,7 +523,7 @@ _pset_factory(PyObject * arg){
     //Py_RETURN_NOTIMPLEMENTED;
 
     //PyErr_SetString(PyExc_TypeError, "Expected a number, ProcSet or list");
-    PyErr_SetObject(PyExc_TypeError, Py_NotImplemented);
+    PyErr_SetObject(PyExc_TypeError, Py_NotImplemented);        //systeme D
     return NULL;    
 }
 
