@@ -18,13 +18,12 @@ typedef struct {
     // Boundaries of the ProcSet paired two by two as half-opened intervals
     pset_boundary_t *_boundaries;   
 
-    // pointer to the Number of boundaries, (2x nbr of intervals)
-    // --> has to be a pointer because of shallow copies
+    // the number of boundaries, (2x nbr of intervals)
     Py_ssize_t nb_boundary;
 } ProcSetObject;
 
 
-// a method that resizes and
+// a method that resizes a procset
 // nb_elements should always be > 0
 static int
 pset_resize(ProcSetObject* pset, Py_ssize_t nb_elements){
@@ -59,6 +58,7 @@ pset_resize(ProcSetObject* pset, Py_ssize_t nb_elements){
     return 1;
 }
 
+// copies nb_elements boundaries from the source procset into the destination procset
 static int
 pset_copy(ProcSetObject* src, ProcSetObject *destination, Py_ssize_t nb_elements){
     for (Py_ssize_t i = 0; i < nb_elements; i++){
