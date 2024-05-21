@@ -470,6 +470,16 @@ _parse_list(PyObject * arg){
     return res;
 }
 
+// static ProcSetObject *
+// _parse_generator(PyObject * arg){
+
+// }
+
+// static ProcSetObject *
+// _parse_generator(PyObject * arg){
+
+// }
+
 static PyObject* 
 _pset_factory(PyObject * arg){
     // if arg est un nombre:
@@ -486,6 +496,16 @@ _pset_factory(PyObject * arg){
     else if (PySequence_Check(arg) || PySet_Check(arg)){
         return (PyObject*) _parse_list(arg);
         
+    }
+
+    // si arg est un generateur
+    else if (Py_IS_TYPE(arg, &PyGen_Type)){
+        //return (PyObject *) _parse_generator(arg);
+    }
+
+    // si arg est un generateur
+    else if (Py_IS_TYPE(arg, &PyGen_Type)){
+        //return (PyObject *) _parse_generator(arg);
     }
 
     //Py_RETURN_NOTIMPLEMENTED;
@@ -899,7 +919,6 @@ static PyObject* ProcSequence_getItem(ProcSetObject *self, Py_ssize_t pos){
     Py_ssize_t len = ProcSequence_length(self);
     if (len <= 0L  || pos < 0 || len <= pos){
         //trying to access null
-        //can't throw an error because it doesn't get caught by next :/
         PyErr_SetString(PyExc_IndexError, "ProcSet index out of range");
         return NULL;
     }
