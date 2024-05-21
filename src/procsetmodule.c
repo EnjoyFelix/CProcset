@@ -201,7 +201,6 @@ _inplace_core(ProcSetObject * self, PyObject * other, InplaceType fonction){
     
     // you get no result when an error occures, so we check for errors
     if (!result || Py_Is(result, Py_NotImplemented)){
-        // TODO: this returns null on NotImplemented, this was not part of the tests. 
         return result;
     }
     
@@ -308,46 +307,15 @@ ProcSet_ixor(ProcSetObject * self, PyObject* other){
 
 // repertoires des methodes 
 static PyNumberMethods ProcSet_number_methods = {
-    0, // binaryfunc nb_add;
-    (binaryfunc) ProcSet_sub,
-    0, // binaryfunc nb_multiply;
-    0, // binaryfunc nb_remainder;
-    0, // binaryfunc nb_divmod;
-    0, // ternaryfunc nb_power;
-    0, // unaryfunc nb_negative;
-    0, // unaryfunc nb_positive;
-    0, // unaryfunc nb_absolute;
-    (inquiry) ProcSet_bool,
-    0, // unaryfunc nb_invert;
-    0, // binaryfunc nb_lshift;
-    0, // binaryfunc nb_rshift;
-    (binaryfunc) ProcSet_and,
-    (binaryfunc) ProcSet_xor,
-    (binaryfunc) ProcSet_or,
-    0, // unaryfunc nb_int;
-    0, // void *nb_reserved;
-    0, // unaryfunc nb_float;
-
-    0, // binaryfunc nb_inplace_add;
-    (binaryfunc) ProcSet_isub,
-    0, // binaryfunc nb_inplace_multiply;
-    0, // binaryfunc nb_inplace_remainder;
-    0, // ternaryfunc nb_inplace_power;
-    0, // binaryfunc nb_inplace_lshift;
-    0, // binaryfunc nb_inplace_rshift;
-    (binaryfunc) ProcSet_iand,
-    (binaryfunc) ProcSet_ixor,
-    (binaryfunc) ProcSet_ior,
-
-    0, // binaryfunc nb_floor_divide;
-    0, // binaryfunc nb_true_divide;
-    0, // binaryfunc nb_inplace_floor_divide;
-    0, // binaryfunc nb_inplace_true_divide;
-
-    0, // unaryfunc nb_index;
-
-    0, // binaryfunc nb_matrix_multiply;
-    0, // binaryfunc nb_inplace_matrix_multiply;
+    .nb_subtract = (binaryfunc) ProcSet_sub,
+    .nb_bool = (inquiry) ProcSet_bool,
+    .nb_and = (binaryfunc) ProcSet_and,
+    .nb_xor = (binaryfunc) ProcSet_xor,
+    .nb_or = (binaryfunc) ProcSet_or,
+    .nb_inplace_subtract = (binaryfunc) ProcSet_isub,
+    .nb_inplace_and = (binaryfunc) ProcSet_iand,
+    .nb_inplace_xor = (binaryfunc) ProcSet_ixor,
+    .nb_inplace_or = (binaryfunc) ProcSet_ior,
 };
 
 // returns NULL or Py_NotImplemented based on the error type
