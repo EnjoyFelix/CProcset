@@ -1,5 +1,6 @@
 #include "procsetheader.h"
 #include "mergepredicate.h"
+#include "intervaliterator.h"
 #include <stdio.h>
 #include "structmember.h" // deprecated, may use descrobject.h
 #include <stdint.h> // C99
@@ -28,7 +29,8 @@ ProcSet_iscontiguous(ProcSetObject *self, void * Py_UNUSED(args)){
 // returns an iterator
 PyObject *
 ProcSet_intervals(ProcSetObject *self, void * Py_UNUSED(args)){
-    return PyObject_GetIter((PyObject*) self);
+    PyObject * iter = IntervalIterator_new(self);
+    return iter;
 }
 
 // returns a shallow copy of the object
@@ -469,11 +471,6 @@ _parse_list(PyObject * arg){
 
     return res;
 }
-
-// static ProcSetObject *
-// _parse_generator(PyObject * arg){
-
-// }
 
 // static ProcSetObject *
 // _parse_generator(PyObject * arg){
@@ -941,6 +938,12 @@ static PyObject* ProcSequence_getItem(ProcSetObject *self, Py_ssize_t pos){
     return PyLong_FromUnsignedLong(self->_boundaries[itv] + (pset_boundary_t) (pos - i));
 }
 
+// // getslice 
+// static PyObject*
+// ProcSequence_getSlice(ProcSetObject *self, Py_ssize_t start, Py_ssize_t stop){
+//     Py_RETURN_NOTIMPLEMENTED;
+// }
+
 // __contains__
 static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
     // conversion of the PyObject to a C object
@@ -1159,6 +1162,9 @@ PyMODINIT_FUNC PyInit_procset(void)
 {
     PyObject *m;
     if (PyType_Ready(&ProcSetType) < 0) return NULL;
+
+    IntervalIterType.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&IntervalIterType) < 0) return NULL;
 
     m = PyModule_Create(&procsetmodule);
     if (m == NULL) return NULL;
