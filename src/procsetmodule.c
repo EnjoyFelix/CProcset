@@ -945,16 +945,9 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
 
 // Liste des methodes qui permettent a procset d'etre utilisé comme un objet sequence
 PySequenceMethods ProcSequenceMethods = {
-    (lenfunc) ProcSequence_length,               // sq_length    __len__
-    0,                                          // sq_concat    __add__
-    0,                                          // sq_repeat    __mul__
-    (ssizeargfunc) ProcSequence_getItem,        // sq_item      __getitem__
-    0,                                          // was_sq_slice
-    0,                                          // sq_ass_item   __setitem__ / __delitem__ 
-    0,                                          // was_sq_ass_slice
-    (objobjproc) ProcSequence_contains,         // sq_contains  __contains__
-    0,                                          // sq_inplace_concat
-    0,                                          // sq_inplace_repeat
+    .sq_length = (lenfunc) ProcSequence_length,               // sq_length    __len__
+    .sq_item = (ssizeargfunc) ProcSequence_getItem,        // sq_item      __getitem__
+    .sq_contains = (objobjproc) ProcSequence_contains,         // sq_contains  __contains__
 };
 
 
