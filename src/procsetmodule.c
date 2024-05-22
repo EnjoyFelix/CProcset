@@ -14,6 +14,17 @@ static PyTypeObject ProcSetType;
 // Update type, used by the _update_core function
 typedef PyObject * (* InplaceType) (ProcSetObject *, PyObject *);
 
+// returns true if the object is iterable
+static int
+_isIterable(PyObject * elem){
+    // should not be a string
+    // should be a Sequence or set
+    return !Py_IS_TYPE(elem, &PyUnicode_Type) && (\
+        PySequence_Check(elem) || \
+        PySet_Check(elem)/*  || \
+        PyGen_Check(elem) */);      
+}
+
 //returns the number of intervals in the set
 PyObject *
 ProcSet_count(ProcSetObject *self, void * Py_UNUSED(args)) {
@@ -320,33 +331,6 @@ static PyNumberMethods ProcSet_number_methods = {
     .nb_inplace_or = (binaryfunc) ProcSet_ior,
 };
 
-// returns NULL or Py_NotImplemented based on the error type
-static PyObject *
-_handle_err_notimpl(){
-    // On récupère les informations de l'exception, TODO: utiliser PyErr_GetRaisedException (python 3.12)
-    PyObject * type, *obj, *traceback;
-    PyErr_Fetch(&type, &obj, &traceback);       // deprecated
-
-    // early termination si l'erreur n'était pas set
-    if (!type){
-        return NULL;
-    }
-
-    // on retourne NotImplemented si Obj l'est
-    if (Py_NotImplemented == obj){
-        // on libère nos references fortes 
-        Py_DECREF(type);
-        Py_XDECREF(traceback);      // xdecref car il peut etre null independament
-
-        PyErr_Clear();
-        return obj;
-    } 
-
-    // sinon on retourne l'erreur précédente
-    PyErr_Restore(type, obj, traceback);        // Py_DEPRECATED
-    return NULL;
-}
-
 // merge de procset récursif DPR
 static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t min, Py_ssize_t max){
     #ifdef PSET_DEBUG
@@ -472,10 +456,32 @@ _parse_list(PyObject * arg){
     return res;
 }
 
-// static ProcSetObject *
-// _parse_generator(PyObject * arg){
+static ProcSetObject *
+_parse_generator(PyObject * arg){
+    PyObject * list = PyList_New(10);
+    PyObject* iterator = PyObject_GetIter(arg);
+    PyObject * currentObject;
 
-// }
+    while ((currentObject = PyIter_Next(iterator))){
+        if (!PyNumber_Check(currentObject)){
+            Py_DECREF(currentObject);
+            PyErr_SetString(PyExc_TypeError, "Incompatible iterable, expected an iterable of exactly 2 int");
+            break;
+        }
+        PyList_Append(list, currentObject);
+    }
+
+    Py_DecRef(iterator);
+
+    if (PyErr_Occurred()){
+        Py_DECREF(list);
+        return NULL;
+    }
+
+    ProcSetObject * res = _parse_list(list);
+    Py_DECREF(list);
+    return res;
+}
 
 static PyObject* 
 _pset_factory(PyObject * arg){
@@ -496,17 +502,11 @@ _pset_factory(PyObject * arg){
     }
 
     // si arg est un generateur
-    else if (Py_IS_TYPE(arg, &PyGen_Type)){
-        //return (PyObject *) _parse_generator(arg);
+    else if (false && Py_IS_TYPE(arg, &PyGen_Type)){
+        return (PyObject *) _parse_generator(arg);
     }
 
-    // si arg est un generateur
-    else if (Py_IS_TYPE(arg, &PyGen_Type)){
-        //return (PyObject *) _parse_generator(arg);
-    }
-
-    //Py_RETURN_NOTIMPLEMENTED;
-
+    //TODO: v remove when fixed in PyProcset
     //PyErr_SetString(PyExc_TypeError, "Expected a number, ProcSet or list");
     PyErr_SetObject(PyExc_TypeError, Py_NotImplemented);        //systeme D
     return NULL;    
@@ -938,12 +938,6 @@ static PyObject* ProcSequence_getItem(ProcSetObject *self, Py_ssize_t pos){
     return PyLong_FromUnsignedLong(self->_boundaries[itv] + (pset_boundary_t) (pos - i));
 }
 
-// // getslice 
-// static PyObject*
-// ProcSequence_getSlice(ProcSetObject *self, Py_ssize_t start, Py_ssize_t stop){
-//     Py_RETURN_NOTIMPLEMENTED;
-// }
-
 // __contains__
 static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
     // conversion of the PyObject to a C object
@@ -971,6 +965,19 @@ PySequenceMethods ProcSequenceMethods = {
     .sq_item = (ssizeargfunc) ProcSequence_getItem,        // sq_item      __getitem__
     .sq_contains = (objobjproc) ProcSequence_contains,         // sq_contains  __contains__
 };
+
+
+
+/* // getslice 
+static PyObject*
+ProcSequence_getSlice(ProcSetObject *self, Py_ssize_t start, Py_ssize_t stop){
+    return PySequence_GetSlice((PyObject * )self, start, stop);
+}
+
+//mapping methods
+PyMappingMethods ProcSetMappingMethods = {
+    .mp_subscript = 
+}; */
 
 
 
@@ -1005,37 +1012,71 @@ static int _sub_super(ProcSetObject * self, ProcSetObject * other){
     return result;
 }
 
+static PyObject *
+_NonOperatorParsing(PyObject * args){
+    Py_ssize_t lenOfArgs = PySequence_Check(args) ? PySequence_Size(args) : 0;
+
+    // not enough argmuments
+    if (!lenOfArgs){
+        PyErr_SetString(PyExc_TypeError, "takes exactly one argument (0 given)");
+        return NULL;
+    } 
+    // too many arguments
+    else if (lenOfArgs > 1){
+        PyErr_SetString(PyExc_TypeError, "takes exactly one argument");
+        return NULL;
+    }
+
+    // we get the given argument
+    PyObject * arg0 = PySequence_GetItem(args, 0);
+
+    // it needs to be iterable
+    if (!_isIterable(arg0)){
+        //TODO : v DECOMMENT WHEN FIXED IN PY_PROCSET
+
+        // PyErr_SetString(PyExc_TypeError, "given object is not iterable");
+        // return NULL;
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    return _pset_factory(arg0);
+}
 // issubset
 static PyObject *
 ProcSet_issubset(ProcSetObject *self, PyObject * args){
-    ProcSetObject * other = _get_pset_from_args(args);
-    if (!other){
-        return _handle_err_notimpl();
+    PyObject * other = _NonOperatorParsing(args);
+    if (!other || other == Py_NotImplemented){
+        //return _handle_err_notimpl();
+        return other;
     }
 
-    return PyBool_FromLong(_sub_super(self, other));
+    PyObject * result = PyBool_FromLong(_sub_super(self, (ProcSetObject *) other));
+    // ProcSet_dealloc((ProcSetObject *) other);
+    return result;
 }
 
 // issubset
 static PyObject *
 ProcSet_issuperset(ProcSetObject *self, PyObject * args){
-    ProcSetObject * other = _get_pset_from_args(args);
-    if (!other){
-        return _handle_err_notimpl();
+    PyObject * other = _NonOperatorParsing(args);
+    if (!other || other == Py_NotImplemented){
+        return other;
     }
-
-    return PyBool_FromLong(_sub_super(other, self));
+    
+    PyObject * result = PyBool_FromLong(_sub_super((ProcSetObject *) other, self));
+    ProcSet_dealloc((ProcSetObject *) other);
+    return result;
 }
 
 // isdisjoint
 static PyObject *
 ProcSet_isdisjoint(ProcSetObject *self, PyObject * args){
-    ProcSetObject * other = _get_pset_from_args(args);
-    if (!other){
-        return _handle_err_notimpl();
+    PyObject * other = _NonOperatorParsing(args);
+    if (!other || other == Py_NotImplemented){
+        return other;
     }
 
-    ProcSetObject * intersection = (ProcSetObject* ) ProcSet_and(self, (PyObject*) other);
+    ProcSetObject * intersection = (ProcSetObject* ) ProcSet_and(self, other);
 
     if (!intersection){
         return NULL;
@@ -1043,7 +1084,7 @@ ProcSet_isdisjoint(ProcSetObject *self, PyObject * args){
 
     int result = intersection->nb_boundary == 0;
     ProcSet_dealloc(intersection);          // we release the resulting procset
-    ProcSet_dealloc(other);
+    ProcSet_dealloc((ProcSetObject *) other);
 
     return PyBool_FromLong(result);
 }
