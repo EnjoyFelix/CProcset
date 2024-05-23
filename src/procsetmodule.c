@@ -993,9 +993,6 @@ ProcsetMapping_getSlice(ProcSetObject *self, Py_ssize_t start, Py_ssize_t stop, 
 
         // macro car par besoin de clear les references d'une liste vide
         PyList_SET_ITEM(res, pos, obj);
-
-        // decref
-        //Py_DecRef(obj);
     }
 
     return res;
