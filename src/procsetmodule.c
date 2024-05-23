@@ -968,16 +968,80 @@ PySequenceMethods ProcSequenceMethods = {
 
 
 
-/* // getslice 
+// getslice 
 static PyObject*
-ProcSequence_getSlice(ProcSetObject *self, Py_ssize_t start, Py_ssize_t stop){
-    return PySequence_GetSlice((PyObject * )self, start, stop);
+ProcsetMapping_getSlice(ProcSetObject *self, Py_ssize_t start, Py_ssize_t stop, Py_ssize_t step){
+    if (step == 0){
+        PyErr_SetString(PyExc_ValueError, "slice step cannot be zero");
+        return NULL;
+    } 
+
+    Py_ssize_t len = PySlice_AdjustIndices(ProcSequence_length(self), &start, &stop, step);
+    PyObject* res = PyList_New(len);
+    // si pb d'alloc
+    if (res == NULL) {
+        return NULL;
+    } 
+    // si liste vide
+    else if (!len) return res;
+
+    // i l'iterateur, pos la position dans la liste destination
+    Py_ssize_t i, pos;
+
+    for (i = start, pos = 0; pos < len; i += step, pos++) {
+        PyObject * obj = PySequence_GetItem((PyObject*) self,i);
+
+        // macro car par besoin de clear les references d'une liste vide
+        PyList_SET_ITEM(res, pos, obj);
+
+        // decref
+        //Py_DecRef(obj);
+    }
+
+    return res;
+}
+
+// subscript, same signature as PyObject_getItem
+static PyObject*
+ProcsetMapping_subscript(PyObject * self, PyObject * _key){
+    
+    // if the key is a number
+    if (PyLong_Check(_key)){
+        Py_ssize_t key = PyNumber_AsSsize_t(_key, PyExc_IndexError);
+
+        //si on a pas pu parser
+        if (key == -1 && PyErr_Occurred()){
+            return NULL;
+        }
+        
+        //si la taille est negative
+        if (key < 0){
+            key += ProcSequence_length((ProcSetObject *) self);
+        }
+
+        return ProcSequence_getItem((ProcSetObject *) self, key);
+    } 
+    
+    // if the key is a slice
+    else if (PySlice_Check(_key)){
+        // on sort les infos de la slice
+        Py_ssize_t start, stop, step;
+        if (PySlice_Unpack(_key, &start, &stop, &step) < 0) {
+            return NULL;
+        }
+
+        return ProcsetMapping_getSlice((ProcSetObject *) self, start, stop, step);
+    }
+
+    // else
+    PyErr_SetString(PyExc_TypeError, "ProcSet indices must be integers or slices");
+    return NULL;
 }
 
 //mapping methods
 PyMappingMethods ProcSetMappingMethods = {
-    .mp_subscript = 
-}; */
+    .mp_subscript = (binaryfunc) ProcsetMapping_subscript,
+};
 
 
 
@@ -1188,6 +1252,7 @@ static PyTypeObject ProcSetType = {
     .tp_as_number = &ProcSet_number_methods,                // __and__, __or__ ...
     .tp_iter = (getiterfunc) PySeqIter_New,                 // __iter__
     .tp_iternext = (iternextfunc) PyIter_Next,              // __next__
+    .tp_as_mapping = &ProcSetMappingMethods,
 };
 
 // basic Module definition
