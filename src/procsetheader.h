@@ -8,7 +8,7 @@
 //#define PSET_DEBUG
 
 typedef uint32_t pset_boundary_t;
-pset_boundary_t MAX_BOUND_VALUE = UINT32_MAX;
+pset_boundary_t MAX_BOUND_VALUE = (pset_boundary_t) -1;
 
 // Definition of the ProcSet struct
 typedef struct {
