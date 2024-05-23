@@ -27,7 +27,7 @@ _isIterable(PyObject * elem){
 //returns the number of intervals in the set
 PyObject *
 ProcSet_count(ProcSetObject *self, void * Py_UNUSED(args)) {
-    return PyLong_FromLong((long) (self->nb_boundary/2));
+    return PyLong_FromLong((self->nb_boundary/2L));
 }
 
 //returns true if the number of nb_boundaries == 2 (which means there is only one contiguous interval in the set)
