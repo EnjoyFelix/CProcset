@@ -1,6 +1,7 @@
 #ifndef __PROCSET_INTERVALITER_H_
 #define __PROCSET_INTERVALITER_H_
 
+#include <Python.h>
 #include "procsetheader.h"
 
 static PyTypeObject IntervalIterType;

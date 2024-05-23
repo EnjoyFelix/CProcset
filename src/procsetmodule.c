@@ -1,11 +1,10 @@
-#include "procsetheader.h"
-#include "mergepredicate.h"
 #include "intervaliterator.h"
 #include <stdio.h>
-#include "structmember.h" // deprecated, may use descrobject.h
 #include <stdint.h> // C99
-#include <stdlib.h>
 #include <string.h>
+#include <Python.h>
+#include "procsetheader.h"
+#include "mergepredicate.h"
 
 #define STR_BUFFER_SIZE 255
 
