@@ -324,15 +324,15 @@ ProcSet_ixor(ProcSetObject * self, PyObject* other){
 
 // repertoires des methodes 
 static PyNumberMethods ProcSet_number_methods = {
-    .nb_subtract = (binaryfunc) ProcSet_sub,
-    .nb_bool = (inquiry) ProcSet_bool,
-    .nb_and = (binaryfunc) ProcSet_and,
-    .nb_xor = (binaryfunc) ProcSet_xor,
-    .nb_or = (binaryfunc) ProcSet_or,
-    .nb_inplace_subtract = (binaryfunc) ProcSet_isub,
-    .nb_inplace_and = (binaryfunc) ProcSet_iand,
-    .nb_inplace_xor = (binaryfunc) ProcSet_ixor,
-    .nb_inplace_or = (binaryfunc) ProcSet_ior,
+    .nb_subtract            = (binaryfunc) ProcSet_sub,
+    .nb_bool                = (inquiry) ProcSet_bool,
+    .nb_and                 = (binaryfunc) ProcSet_and,
+    .nb_xor                 = (binaryfunc) ProcSet_xor,
+    .nb_or                  = (binaryfunc) ProcSet_or,
+    .nb_inplace_subtract    = (binaryfunc) ProcSet_isub,
+    .nb_inplace_and         = (binaryfunc) ProcSet_iand,
+    .nb_inplace_xor         = (binaryfunc) ProcSet_ixor,
+    .nb_inplace_or          = (binaryfunc) ProcSet_ior,
 };
 
 // merge de procset récursif DPR
@@ -347,7 +347,7 @@ static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t min, Py_ssiz
     }
     
     // average
-    Py_ssize_t avg = (min + max) >> 1;
+    Py_ssize_t avg = (min + max) / 2;
 
     // le procset de gauche 
     ProcSetObject * left = _rec_merge(list, min, avg);
@@ -965,9 +965,9 @@ static int ProcSequence_contains(ProcSetObject* self, PyObject* val){
 
 // Liste des methodes qui permettent a procset d'etre utilisé comme un objet sequence
 PySequenceMethods ProcSequenceMethods = {
-    .sq_length = (lenfunc) ProcSequence_length,               // sq_length    __len__
-    .sq_item = (ssizeargfunc) ProcSequence_getItem,        // sq_item      __getitem__
-    .sq_contains = (objobjproc) ProcSequence_contains,         // sq_contains  __contains__
+    .sq_length      = (lenfunc) ProcSequence_length,              // sq_length    __len__
+    .sq_item        = (ssizeargfunc) ProcSequence_getItem,        // sq_item      __getitem__
+    .sq_contains    = (objobjproc) ProcSequence_contains,         // sq_contains  __contains__
 };
 
 
