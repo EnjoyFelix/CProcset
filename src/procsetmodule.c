@@ -33,7 +33,12 @@ ProcSet_count(ProcSetObject *self, void * Py_UNUSED(args)) {
 //returns true if the number of nb_boundaries == 2 (which means there is only one contiguous interval in the set)
 PyObject *
 ProcSet_iscontiguous(ProcSetObject *self, void * Py_UNUSED(args)){
-    return (!self->nb_boundary || self->nb_boundary == 2 ? _Py_NewRef(((PyObject *) &_Py_TrueStruct)) : _Py_NewRef(((PyObject *) &_Py_FalseStruct)));
+    // the set is contiguous if it's empty or only has 1 interval
+    if (!self->nb_boundary || self->nb_boundary == 2){
+        Py_RETURN_TRUE;
+    }
+
+    Py_RETURN_FALSE;
 }
 
 // returns an iterator
