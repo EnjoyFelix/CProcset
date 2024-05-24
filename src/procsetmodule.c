@@ -740,71 +740,75 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
 
 
 static PyObject *
-_format(ProcSetObject * self, const char insep, const char outsep){
+_format(ProcSetObject * self, PyObject * insep, PyObject* outsep){
     // early termination if the pset is empty
     if (!self->nb_boundary){
         return PyUnicode_FromString("");
     }
+    
+    // une liste de string d'intervals
+    // +1 ref -> 1
+    PyObject * list = PyList_New(self->nb_boundary / 2);
 
-    char value[64] = "";            // a buffer to hold the representation of the interval
-    bool inner = false;             // things are different after the first occurence and i was to lazy to write it another way
-
-    PyObject * dest_bytes = PyBytes_FromString("");
-    for (Py_ssize_t i = 0; i < self->nb_boundary && dest_bytes; i+=2){
-
-        // are we on the first interval ?
-        if (i!= 0){
-            // if not, we add the outsep rn, doing such avoid ending the string with the outsep
-            value[0] = outsep;
-            inner = true;
-        }
-
-        // a and b -> [a, b[
+    for (Py_ssize_t i = 0, curr = 0; i < self->nb_boundary; i += 2, curr++){
         pset_boundary_t a = self->_boundaries[i];
-        pset_boundary_t b = (self->_boundaries[i+1]) -1; //b -1 as the interval is half opened 
+        pset_boundary_t b = self->_boundaries[i+1];
 
-        if (a == b){
-            //single value
-            sprintf(value + inner, "%u", a);
+        PyObject * itv;
+        if (b == a+1){
+            // +1 ref -> 2
+            itv = PyUnicode_FromFormat("%li", a);       // a single value
         } else {
-            //interval
-            sprintf(value + inner, "%u%c%u",  a, insep, b);
+            // +1 ref -> 2
+            itv = PyUnicode_FromFormat("%li%U%li", a, insep, b-1);      // [a,b[ -> a-(b-1)
         }
 
-        PyObject * value_bytes = PyBytes_FromString(value);     // a ref to a new byte object
-        PyBytes_Concat(&dest_bytes, value_bytes);               // 
+        // -1 ref -> 1
+        PyList_SetItem(list, curr, itv);        // does not steal a a ref
+    }  
 
-        Py_DECREF(value_bytes);
-        // idk if i need to clear value ?
-    } 
-
-    // When an error occurs, dest_byte becomes null and an error is set
-    if (!dest_bytes){
-        return NULL;
-    } 
-
-    const char * result_str = PyBytes_AS_STRING(dest_bytes);    // doesn't need to be dealloced -> https://docs.python.org/3/c-api/bytes.html
-    PyObject * result = PyUnicode_FromString(result_str);
-    Py_DECREF(dest_bytes);
+    PyObject * result = PyUnicode_Join(outsep, list);
+    // -1 ref -> 0
+    Py_DecRef(list);
     return result;
 }
 
 // __format__
 static PyObject*
 ProcSet_format(ProcSetObject * self, PyObject * args){
-    const char *input_str;  // a string that will receive the parsed value, chepa si je dois le free celui la
-    Py_ssize_t input_length;
- 
-    // we try to parse the args, the parsed string should be of length 2
-    if (PyTuple_Size(args) && (!PyArg_ParseTuple(args, "s#", &input_str, &input_length) || (input_length != 0 && input_length != 2))) {
-
-        // if we fail, we set an error and return null
+    Py_ssize_t lenOfArgs = PyTuple_Size(args);
+    if (lenOfArgs == 0){
         PyErr_SetString(PyExc_ValueError, "Invalid format specifier");
-        return NULL; 
+        return NULL;
     }
 
-    // on apelle _format avec les separateurs
-    return input_length ? _format(self, input_str[0], input_str[1]) : _format(self, '-', ' ');
+    // PyTuple_GetItem returns a borrowed ref
+    PyObject * _str = PyTuple_GetItem(args, 0);
+    Py_ssize_t len_str;
+
+    // arg[0] should be a string of length 0 | 2
+    if (!PyUnicode_Check(_str) || (len_str = PyUnicode_GetLength(_str), (len_str != 0 && len_str != 2))){
+        PyErr_SetString(PyExc_ValueError, "Invalid format specifier");
+        return NULL;
+    }
+    
+    PyObject * insep;
+    PyObject * outsep;
+    if (len_str == 0){
+        // 2 new refs -> 2
+        insep = PyUnicode_FromString("-");      
+        outsep = PyUnicode_FromString(" ");
+    } else {
+        // 2 new refs -> 2
+        insep = PyUnicode_Substring(_str, 0, 1);        
+        outsep = PyUnicode_Substring(_str, 1, 2);
+    }
+
+    PyObject * res = _format(self, insep, outsep);
+    // -2 refs -> 0
+    Py_DECREF(insep);
+    Py_DECREF(outsep);
+    return res;
 }
 
 // __repr__
@@ -850,7 +854,13 @@ static PyObject *
 ProcSet_str(ProcSetObject *self)
 {
     // this function is just an alias for ProcSet().__format__("- ");
-    return _format(self, '-', ' ');
+    PyObject * insep = PyUnicode_FromString("-");
+    PyObject * outsep = PyUnicode_FromString(" ");
+    PyObject * res = _format(self, insep, outsep);
+
+    Py_DecRef(insep);
+    Py_DecRef(outsep);
+    return res;
 }
 
 
