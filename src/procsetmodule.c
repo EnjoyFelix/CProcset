@@ -814,39 +814,45 @@ ProcSet_format(ProcSetObject * self, PyObject * args){
 // __repr__
 static PyObject *
 ProcSet_repr(ProcSetObject *self){
-    //The object we're going to return;
-    PyObject *str_obj = NULL;
+    // early termination if the pset is empty
+    if (!self->nb_boundary){
+        return PyUnicode_FromString("ProcSet()");
+    }
+    
+    // une liste de string d'intervals
+    // +1 ref -> 1
+    PyObject * list = PyList_New(self->nb_boundary / 2);
 
-    // an empty string that will be filled with "ProcSet((a,b), c, (d,e))"
-    char bounds_string[STR_BUFFER_SIZE] = "ProcSet(";
+    // +1 ref -> 2
+    PyObject * outsep = PyUnicode_FromString(", ");
 
-    int i = 0;
-    // for every pair of boundaries
-    while(i < self->nb_boundary){
-        if (i != 0){
-            strcat(bounds_string + strlen(bounds_string), ", ");
-        };
-
-        // a and b -> [a, b[
+    for (Py_ssize_t i = 0, curr = 0; i < self->nb_boundary; i += 2, curr++){
         pset_boundary_t a = self->_boundaries[i];
-        pset_boundary_t b = (self->_boundaries[i+1]) -1; //b -1 as the interval is half opened 
+        pset_boundary_t b = self->_boundaries[i+1];
 
-        if (a == b){
-            //single number
-            sprintf(bounds_string + strlen(bounds_string), "%u", a);
+        PyObject * itv;
+        if (b == a+1){
+            // +1 ref -> 3
+            itv = PyUnicode_FromFormat("%li", a);       // a single value
         } else {
-            //interval
-            sprintf(bounds_string + strlen(bounds_string), "(%u, %u)",  a,b);
+            // +1 ref -> 3
+            itv = PyUnicode_FromFormat("(%li, %li)", a, b-1);      // [a,b[ -> a-(b-1)
         }
 
-        i+= 2;
-    }
+        // -1 ref -> 2
+        PyList_SetItem(list, curr, itv);        // does not steal a a ref
+    }  
 
-    strcat(bounds_string + strlen(bounds_string), ")\0");
+    // +1 ref -> 3
+    PyObject * joined = PyUnicode_Join(outsep, list);
+    // -2 ref -> 1
+    Py_DecRef(list);
+    Py_DecRef(outsep);
 
-    // Transform to PyObject Unicode
-    str_obj = PyUnicode_FromString(bounds_string);
-    return str_obj;
+    PyObject * result = PyUnicode_FromFormat("ProcSet(%U)", joined);
+    // -1 ref -> 0
+    Py_DecRef(joined);
+    return result;
 }
 
 // __str__
