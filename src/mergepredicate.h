@@ -3,23 +3,28 @@
 
 #include <stdbool.h> // C99
 
+#if PYTHON_API_VERSION < 1100
+#define Py_ALWAYS_INLINE 
+#endif
+
+
 // type of the predicate function used in the merge algorithm
 typedef bool (*MergePredicate)(bool, bool);
 
 
-bool bitwiseOr(bool inLeft, bool inRight) {
+static inline Py_ALWAYS_INLINE bool bitwiseUnion(bool inLeft, bool inRight) {
     return inLeft | inRight;
 }
 
-bool bitwiseAnd(bool inLeft, bool inRight) {
+static inline Py_ALWAYS_INLINE bool bitwiseIntersection(bool inLeft, bool inRight) {
     return inLeft & inRight;
 }
 
-bool bitwiseSubtraction(bool inLeft, bool inRight) {
+static inline Py_ALWAYS_INLINE bool bitwiseDifference(bool inLeft, bool inRight) {
     return inLeft & (!inRight);
 }
 
-bool bitwiseXor(bool inLeft, bool inRight) {
+static inline Py_ALWAYS_INLINE bool bitwiseSymmetricDifference(bool inLeft, bool inRight) {
     return inLeft ^ inRight;
 }
 

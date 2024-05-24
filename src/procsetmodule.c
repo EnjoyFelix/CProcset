@@ -256,7 +256,7 @@ ProcSet_or(ProcSetObject* self, PyObject* other){
     }
 
     // we call merge on the two objects and return the result
-    return merge(self, (ProcSetObject *) other, bitwiseOr);
+    return merge(self, (ProcSetObject *) other, bitwiseUnion);
 }
 
 // __ior__
@@ -275,7 +275,7 @@ ProcSet_and(ProcSetObject* self, PyObject* other){
     }
 
     // we call merge on the two objects and return the result
-    return merge(self, (ProcSetObject *) other, bitwiseAnd);
+    return merge(self, (ProcSetObject *) other, bitwiseIntersection);
 }
 
 // __iand__
@@ -294,7 +294,7 @@ ProcSet_sub(ProcSetObject* self, PyObject* other){
     }
 
     // we call merge on the two objects and return the result
-    return merge(self, (ProcSetObject *) other, bitwiseSubtraction);
+    return merge(self, (ProcSetObject *) other, bitwiseDifference);
 }
 
 // __isub__
@@ -313,7 +313,7 @@ ProcSet_xor(ProcSetObject* self, PyObject* other){
     }
 
     // we call merge on the two objects and return the result
-    return merge(self, (ProcSetObject *) other, bitwiseXor);
+    return merge(self, (ProcSetObject *) other, bitwiseSymmetricDifference);
 }
 
 // __ixor__
@@ -355,7 +355,7 @@ static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t min, Py_ssiz
     ProcSetObject * right = _rec_merge(list, avg+1, max);
 
     // le resultat de leur union
-    ProcSetObject * result = (ProcSetObject *) merge(left, right, bitwiseOr);
+    ProcSetObject * result = (ProcSetObject *) merge(left, right, bitwiseUnion);
 
     // on autorise les deux a se faire GC car merge retourne un nouveau PSET 
     // (c'est pour ca que je retourne une copy dans le cas trivial, sinon je perd une reference qui m'appartient )
@@ -460,33 +460,6 @@ _parse_list(PyObject * arg){
     return res;
 }
 
-static ProcSetObject *
-_parse_generator(PyObject * arg){
-    PyObject * list = PyList_New(10);
-    PyObject* iterator = PyObject_GetIter(arg);
-    PyObject * currentObject;
-
-    while ((currentObject = PyIter_Next(iterator))){
-        if (!PyNumber_Check(currentObject)){
-            Py_DECREF(currentObject);
-            PyErr_SetString(PyExc_TypeError, "Incompatible iterable, expected an iterable of exactly 2 int");
-            break;
-        }
-        PyList_Append(list, currentObject);
-    }
-
-    Py_DecRef(iterator);
-
-    if (PyErr_Occurred()){
-        Py_DECREF(list);
-        return NULL;
-    }
-
-    ProcSetObject * res = _parse_list(list);
-    Py_DECREF(list);
-    return res;
-}
-
 static PyObject* 
 _pset_factory(PyObject * arg){
     // if arg est un nombre:
@@ -495,19 +468,14 @@ _pset_factory(PyObject * arg){
     } 
     
     // if it's a procset
-    else if (Py_IS_TYPE(arg, &ProcSetType)){
+    if (Py_IS_TYPE(arg, &ProcSetType)){
         return ProcSet_copy((ProcSetObject *) arg, NULL);
     }
     
     // elseif arg iterable
-    else if (PySequence_Check(arg) || PySet_Check(arg)){
+    if (PySequence_Check(arg) || PySet_Check(arg)){
         return (PyObject*) _parse_list(arg);
         
-    }
-
-    // si arg est un generateur
-    else if (false && Py_IS_TYPE(arg, &PyGen_Type)){
-        return (PyObject *) _parse_generator(arg);
     }
 
     //TODO: v remove when fixed in PyProcset
@@ -1054,7 +1022,7 @@ ProcSet_eq(ProcSetObject* self, ProcSetObject* other){
         return false;
     }
 
-    // we go through the list and check the equality 
+    // parcours de la liste sur self->nb_boundaries car self self->nb_boundary == other->nb_boundary
     Py_ssize_t i = 0;
     while (i < self->nb_boundary && self->_boundaries[i] == other->_boundaries[i]){
         i++;
@@ -1167,7 +1135,7 @@ static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int 
     switch (operation){
         case Py_LT:{ // <
             // issubset and is different
-            return PyBool_FromLong(_sub_super(self, other) & ! ProcSet_eq(self, other));
+            return PyBool_FromLong(! ProcSet_eq(self, other) && _sub_super(self, other));
         };
 
         case Py_LE:{ // <=
@@ -1185,7 +1153,7 @@ static PyObject* ProcSet_richcompare(ProcSetObject* self, PyObject* _other, int 
 
         case Py_GT:{ // >
             // is superset and is different
-            return PyBool_FromLong(_sub_super(other, self) & ! ProcSet_eq(self, other));
+            return PyBool_FromLong(!ProcSet_eq(self, other) && _sub_super(other, self));
         };
 
         case Py_GE:{ // >=
