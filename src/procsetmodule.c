@@ -503,7 +503,10 @@ _get_pset_from_args(PyObject * args){
     }
 
     // une liste de pointeurs vers des psets
-    ProcSetObject * psets[lengthOfArgs];
+    PyObject * list_pset = PyList_New(0);
+    if (!list_pset){
+        return NULL;
+    }
 
     // an iterator on args (args is a list of objects)
     PyObject * iterator = PyObject_GetIter(args);
@@ -517,9 +520,6 @@ _get_pset_from_args(PyObject * args){
     // the current item
     PyObject * currentItem;
 
-    //the position in the list
-    int position = 0;
-
     // for every argument
     while ((currentItem = PyIter_Next(iterator))) {
         PyObject * currentPset = _pset_factory(currentItem);
@@ -530,9 +530,9 @@ _get_pset_from_args(PyObject * args){
         }
 
         // on ajoute le pset
-        psets[position] = (ProcSetObject *) currentPset;
-
-        position += 1;                           // we move on to the next interval
+        if (PyList_Append(list_pset, currentPset) < 0){
+            break;
+        }
         Py_DECREF(currentItem);             // we allow the current element to be gc'ed 
     };
 
@@ -541,14 +541,11 @@ _get_pset_from_args(PyObject * args){
 
     ProcSetObject* other = NULL;
     if (!PyErr_Occurred()){
-        other = _rec_merge(psets, 0, lengthOfArgs-1);
+        other = _rec_merge((ProcSetObject **)((PyListObject *) list_pset)->ob_item, 0, lengthOfArgs-1);
     }
 
     Py_XDECREF(currentItem);
-
-    for (int i = 0; i < position; i++){
-        ProcSetType.tp_dealloc((PyObject *)psets[i]);
-    }
+    Py_DecRef(list_pset);
 
     return other;
 }
