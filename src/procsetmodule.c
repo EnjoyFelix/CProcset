@@ -685,7 +685,135 @@ static PyGetSetDef ProcSet_getset[] = {
 };
 
 
+// returns a pset from a split (ex: a-b or a)
+static PyObject*
+_pset_from_split(PyObject * split, PyObject *insep){
+    // a-b --> [a,b] ou a --> [a]
+    PyObject * absplit = PyUnicode_Split(split, insep, 1);
+    PyObject * res = NULL;
+    // cas a
+    if (PyList_Size(absplit) == 1){
+        // pyList_getitem returns a borrowed list
+        PyObject * a = PyLong_FromUnicodeObject(PyList_GetItem(absplit, 0) ,10);
+        if (!PyErr_Occurred()){
+            return (PyObject *) _parse_integer(a);
+        }  
+    } 
+    // size cannot be 0 so this case is > 1
+    else {
+        PyObject * a = PyLong_FromUnicodeObject(PyList_GetItem(absplit, 0) ,10);
+        PyObject * b = PyLong_FromUnicodeObject(PyList_GetItem(absplit, 1) ,10);
+        if (!PyErr_Occurred()){
+            // setlist decrefs the old one for us
+            PyList_SetItem(absplit, 0, a);
+            PyList_SetItem(absplit, 1, b); 
+            return (PyObject *) _parse_list(absplit);
+        }
+    }
 
+    Py_DECREF(absplit);
+    PyErr_Format(PyExc_ValueError, "Invalid interval format, parsed string is: '%U'", split);
+    return res;
+}
+
+// from_str
+static PyObject *
+ProcSet_fromStr(PyObject * Py_UNUSED(class), PyObject* args, PyObject * kwds){
+    // valid : 0-1 2 -> (0,2)
+    // early termination if args is empty
+    if (PyTuple_Size(args) != 1){
+        PyErr_Format(PyExc_TypeError, "Expected 1 argument (got %li) !", PyTuple_Size(args));
+        return NULL;
+    }
+
+    // +2 ref -> 2
+    PyObject * insep = PyUnicode_FromString("-");
+    PyObject * outsep = PyUnicode_FromString(" ");
+    //kwds may be null
+    if (kwds){
+        PyObject * _insep = PyDict_GetItemString(kwds, "insep");  // borrowed ref
+        if (_insep){
+            // -1 ref -> 1
+            Py_DecRef(insep);
+            // +1   -> 2
+            insep = Py_NewRef(_insep);
+        }
+
+        PyObject * _outsep = PyDict_GetItemString(kwds, "outsep"); //borrowed ref
+        if (_outsep){
+            // -1 ref ->1
+            Py_DecRef(outsep);
+            // +1 -> 2
+            outsep = Py_NewRef(_outsep);
+        }
+
+    }
+
+    // v borrowed ref
+    PyObject * str = PyTuple_GetItem(args, 0);  // cannot be null since we check the size above
+    if (!PyUnicode_Check(str)){
+        // -2 -> 0
+        Py_DecRef(insep);
+        Py_DecRef(outsep);
+        PyErr_Format(PyExc_TypeError, "from_str() argument 2 must be str, not %s", str->ob_type->tp_name);
+        return NULL;
+    }
+
+    // // Commented because it causes a segfault when leaving python (wrong ref count with the)
+    // // is it empty ?
+    // if (PyUnicode_GetLength(str) == 0){
+    //     Py_DecRef(insep);
+    //     Py_DecRef(outsep);
+    //     PyObject * pset = ProcSetType.tp_new(&ProcSetType, NULL, NULL);
+    //     return pset;        //will return NULL with an error set if new failed
+    // }
+
+    // +1 ref -> 3
+    PyObject * list_str = PyUnicode_Split(str, outsep, -1);
+    Py_DECREF(outsep); // -1 -> 2
+    // a of procset
+    // +1 -> 3
+    PyObject * list_pset = PyList_New(0);
+    if (!list_pset){
+        // error set above
+        return NULL;
+    }
+
+    // On va parser chaque split
+    // +1 ref -> 3
+    PyObject * iterator = PyObject_GetIter(list_str);
+    PyObject * currentSplit;
+
+    // +1 ref -> 5
+    while ((currentSplit = PyIter_Next(iterator))){
+        PyObject * parsed_pset = _pset_from_split(currentSplit, insep);
+        if (!parsed_pset){
+            break;
+        }
+
+        PyList_Append(list_pset, parsed_pset);
+        // -1 ref -> 4
+        Py_DECREF(currentSplit);
+    }
+    // -1 ref -> 3
+    Py_DECREF(iterator);
+
+    // -2 -> 1
+    Py_DECREF(list_str);
+    Py_DECREF(insep);
+
+    if (PyErr_Occurred()){
+        // -2 -> 0
+        Py_XDECREF(currentSplit);
+        Py_DECREF(list_pset);
+        return NULL;
+    }
+
+    ProcSetObject ** tableau_psets = (ProcSetObject **) ((PyListObject *) list_pset)->ob_item;
+    PyObject * res = (PyObject *) _rec_merge(tableau_psets, 0, PyList_Size(list_pset)-1);
+    Py_DECREF(list_pset);
+    return res;
+}
 
 // Deallocation method
 static void 
@@ -1205,6 +1333,7 @@ static PyMethodDef ProcSet_methods[] = {
     "The convex hull of a non-empty ProcSet is the contiguous ProcSet made\n"
     "of the smallest unique interval containing all intervals from the\n"
     "non-empty ProcSet."},
+    {"from_str", (PyCFunction)(void(*)(void)) ProcSet_fromStr, METH_CLASS | METH_VARARGS | METH_KEYWORDS, ""},
     {"__format__", (PyCFunction) ProcSet_format, METH_VARARGS, ""},
     {"clear", (PyCFunction) ProcSet_clear, METH_NOARGS, "Empties the ProcSet, removing all elements from it."},
     {"copy", (PyCFunction) ProcSet_copy, METH_NOARGS, "Returns a new ProcSet with a shallow copy of the ProcSet."},
