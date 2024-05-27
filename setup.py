@@ -7,7 +7,7 @@ setup(
         Extension(
             name="procset",
             sources=["src/procsetmodule.c"],
-            extra_compile_args=["-Wall", "-Wextra", "-pedantic", "-Werror", "-std=c99"],
+            extra_compile_args=["-g", "-Wall", "-Wextra", "-pedantic", "-Werror", "-std=c99"],
         )
     ],
 )
