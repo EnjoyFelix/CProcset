@@ -530,9 +530,8 @@ _get_pset_from_args(PyObject * args){
         }
 
         // on ajoute le pset
-        if (PyList_Append(list_pset, currentPset) < 0){
-            break;
-        }
+        PyList_Append(list_pset, currentPset);
+        Py_DECREF(currentPset);
         Py_DECREF(currentItem);             // we allow the current element to be gc'ed 
     };
 
@@ -686,30 +685,33 @@ static PyGetSetDef ProcSet_getset[] = {
 static PyObject*
 _pset_from_split(PyObject * split, PyObject *insep){
     // a-b --> [a,b] ou a --> [a]
-    PyObject * absplit = PyUnicode_Split(split, insep, 1);
+    PyObject * absplit = PyUnicode_Split(split, insep, 1);      // +1
     PyObject * res = NULL;
     // cas a
     if (PyList_Size(absplit) == 1){
         // pyList_getitem returns a borrowed list
-        PyObject * a = PyLong_FromUnicodeObject(PyList_GetItem(absplit, 0) ,10);
+        PyObject * a = PyLong_FromUnicodeObject(PyList_GetItem(absplit, 0) ,10);    // +1
         if (!PyErr_Occurred()){
-            return (PyObject *) _parse_integer(a);
+            res = (PyObject *) _parse_integer(a);
+            Py_DECREF(a);       // -1
         }  
     } 
     // size cannot be 0 so this case is > 1
     else {
-        PyObject * a = PyLong_FromUnicodeObject(PyList_GetItem(absplit, 0) ,10);
+        PyObject * a = PyLong_FromUnicodeObject(PyList_GetItem(absplit, 0) ,10);    // +2
         PyObject * b = PyLong_FromUnicodeObject(PyList_GetItem(absplit, 1) ,10);
         if (!PyErr_Occurred()){
-            // setlist decrefs the old one for us
+            // setlist decrefs the old one for us and uses the given reference
             PyList_SetItem(absplit, 0, a);
-            PyList_SetItem(absplit, 1, b); 
-            return (PyObject *) _parse_list(absplit);
+            PyList_SetItem(absplit, 1, b);
+            res = (PyObject *) _parse_list(absplit);
         }
     }
 
-    Py_DECREF(absplit);
-    PyErr_Format(PyExc_ValueError, "Invalid interval format, parsed string is: '%U'", split);
+    Py_DECREF(absplit);     // -1
+    if (PyErr_Occurred()){
+        PyErr_Format(PyExc_ValueError, "Invalid interval format, parsed string is: '%U'", split);
+    }
     return res;
 }
 
@@ -756,14 +758,14 @@ ProcSet_fromStr(PyObject * Py_UNUSED(class), PyObject* args, PyObject * kwds){
         return NULL;
     }
 
-    // // Commented because it causes a segfault when leaving python (wrong ref count with the)
-    // // is it empty ?
-    // if (PyUnicode_GetLength(str) == 0){
-    //     Py_DecRef(insep);
-    //     Py_DecRef(outsep);
-    //     PyObject * pset = ProcSetType.tp_new(&ProcSetType, NULL, NULL);
-    //     return pset;        //will return NULL with an error set if new failed
-    // }
+    // Commented because it causes a segfault when leaving python (wrong ref count with the)
+    // is it empty ?
+    if (PyUnicode_GetLength(str) == 0){
+        Py_DecRef(insep);
+        Py_DecRef(outsep);
+        PyObject * pset = ProcSetType.tp_new(&ProcSetType, NULL, NULL);
+        return pset;        //will return NULL with an error set if new failed
+    }
 
     // +1 ref -> 3
     PyObject * list_str = PyUnicode_Split(str, outsep, -1);
@@ -783,12 +785,15 @@ ProcSet_fromStr(PyObject * Py_UNUSED(class), PyObject* args, PyObject * kwds){
 
     // +1 ref -> 5
     while ((currentSplit = PyIter_Next(iterator))){
+        // +1 -> 6
         PyObject * parsed_pset = _pset_from_split(currentSplit, insep);
         if (!parsed_pset){
             break;
         }
 
-        PyList_Append(list_pset, parsed_pset);
+        PyList_Append(list_pset, parsed_pset);  // creates a new ref 
+        // -1 -> 5
+        Py_DECREF(parsed_pset);
         // -1 ref -> 4
         Py_DECREF(currentSplit);
     }
