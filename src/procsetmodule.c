@@ -343,7 +343,8 @@ static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t min, Py_ssiz
 
     if (min == max){
         //on retourne le pset courant
-        return (ProcSetObject *) ProcSet_copy(list[min], NULL);
+        //return (ProcSetObject *) ProcSet_copy(list[min], NULL);
+        return (ProcSetObject *) Py_NewRef(list[min]);
     }
     
     // average
@@ -359,8 +360,10 @@ static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t min, Py_ssiz
 
     // on autorise les deux a se faire GC car merge retourne un nouveau PSET 
     // (c'est pour ca que je retourne une copy dans le cas trivial, sinon je perd une reference qui m'appartient )
-    ProcSetType.tp_dealloc((PyObject * ) left);
-    ProcSetType.tp_dealloc((PyObject * ) right);
+    // ProcSetType.tp_dealloc((PyObject * ) left);
+    // ProcSetType.tp_dealloc((PyObject * ) right);
+    Py_DECREF(left);
+    Py_DECREF(right);
     return result; 
 }
 
