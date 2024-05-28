@@ -867,6 +867,9 @@ ProcSet_init(ProcSetObject *self, PyObject *args, PyObject *Py_UNUSED(kwds))
 
     self->_boundaries = other->_boundaries;
     self->nb_boundary = other->nb_boundary;
+
+    other->_boundaries = NULL;      // we need to change it because dealloc will kill it
+    Py_DECREF(other);   //non null so no X
     return 0;
 }
 
