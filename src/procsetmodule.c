@@ -1,4 +1,4 @@
-#include "intervaliterator.h"
+#include "intervaliterator.h"   // ici parceque erreur de compilation avec Python.h
 #include <stdio.h>
 #include <stdint.h> // C99
 #include <string.h>
@@ -444,11 +444,11 @@ _parse_list(PyObject * arg){
         res->_boundaries[i] = (pset_boundary_t) PyLong_AsLong(currentObject) + (outer ? 1 : 0);
         outer = !outer;
         i++;
-        Py_DecRef(currentObject);
+        Py_DECREF(currentObject);
     }
 
     Py_XDECREF(currentObject);
-    Py_DecRef(iterator);
+    Py_DECREF(iterator);
 
     if (PyErr_Occurred()){
         ProcSetType.tp_dealloc((PyObject*) res);
@@ -547,7 +547,7 @@ _get_pset_from_args(PyObject * args){
     }
 
     Py_XDECREF(currentItem);
-    Py_DecRef(list_pset);
+    Py_DECREF(list_pset);
 
     return other;
 }
@@ -736,7 +736,7 @@ ProcSet_fromStr(PyObject * Py_UNUSED(class), PyObject* args, PyObject * kwds){
         PyObject * _insep = PyDict_GetItemString(kwds, "insep");  // borrowed ref
         if (_insep){
             // -1 ref -> 1
-            Py_DecRef(insep);
+            Py_DECREF(insep);
             // +1   -> 2
             insep = Py_NewRef(_insep);
         }
@@ -744,7 +744,7 @@ ProcSet_fromStr(PyObject * Py_UNUSED(class), PyObject* args, PyObject * kwds){
         PyObject * _outsep = PyDict_GetItemString(kwds, "outsep"); //borrowed ref
         if (_outsep){
             // -1 ref ->1
-            Py_DecRef(outsep);
+            Py_DECREF(outsep);
             // +1 -> 2
             outsep = Py_NewRef(_outsep);
         }
@@ -755,8 +755,8 @@ ProcSet_fromStr(PyObject * Py_UNUSED(class), PyObject* args, PyObject * kwds){
     PyObject * str = PyTuple_GetItem(args, 0);  // cannot be null since we check the size above
     if (!PyUnicode_Check(str)){
         // -2 -> 0
-        Py_DecRef(insep);
-        Py_DecRef(outsep);
+        Py_DECREF(insep);
+        Py_DECREF(outsep);
         PyErr_Format(PyExc_TypeError, "from_str() argument 2 must be str, not %s", str->ob_type->tp_name);
         return NULL;
     }
@@ -764,8 +764,8 @@ ProcSet_fromStr(PyObject * Py_UNUSED(class), PyObject* args, PyObject * kwds){
     // Commented because it causes a segfault when leaving python (wrong ref count with the)
     // is it empty ?
     if (PyUnicode_GetLength(str) == 0){
-        Py_DecRef(insep);
-        Py_DecRef(outsep);
+        Py_DECREF(insep);
+        Py_DECREF(outsep);
         PyObject * pset = ProcSetType.tp_new(&ProcSetType, NULL, NULL);
         return pset;        //will return NULL with an error set if new failed
     }
@@ -905,7 +905,7 @@ _format(ProcSetObject * self, PyObject * insep, PyObject* outsep){
 
     PyObject * result = PyUnicode_Join(outsep, list);
     // -1 ref -> 0
-    Py_DecRef(list);
+    Py_DECREF(list);
     return result;
 }
 
@@ -982,12 +982,12 @@ ProcSet_repr(ProcSetObject *self){
     // +1 ref -> 3
     PyObject * joined = PyUnicode_Join(outsep, list);
     // -2 ref -> 1
-    Py_DecRef(list);
-    Py_DecRef(outsep);
+    Py_DECREF(list);
+    Py_DECREF(outsep);
 
     PyObject * result = PyUnicode_FromFormat("ProcSet(%U)", joined);
     // -1 ref -> 0
-    Py_DecRef(joined);
+    Py_DECREF(joined);
     return result;
 }
 
@@ -1000,8 +1000,8 @@ ProcSet_str(ProcSetObject *self)
     PyObject * outsep = PyUnicode_FromString(" ");
     PyObject * res = _format(self, insep, outsep);
 
-    Py_DecRef(insep);
-    Py_DecRef(outsep);
+    Py_DECREF(insep);
+    Py_DECREF(outsep);
     return res;
 }
 
