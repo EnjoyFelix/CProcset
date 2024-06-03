@@ -336,32 +336,29 @@ static PyNumberMethods ProcSet_number_methods = {
 };
 
 // merge de procset récursif DPR
-static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t min, Py_ssize_t max){
+static ProcSetObject * _rec_merge(ProcSetObject *list[], Py_ssize_t lower, Py_ssize_t upper){
     #ifdef PSET_DEBUG
-    printf("_rec_merge -> min: %li, max: %li, avg: %li\n", min, max, (min + max) >> 1);
+    printf("_rec_merge -> lower: %li, upper: %li, avg: %li\n", lower, upper, (lower + upper) >> 1);
     #endif
 
-    if (min == max){
+    if (lower == upper){
         //on retourne le pset courant
-        //return (ProcSetObject *) ProcSet_copy(list[min], NULL);
-        return (ProcSetObject *) Py_NewRef(list[min]);
+        //return (ProcSetObject *) ProcSet_copy(list[lower], NULL);
+        return (ProcSetObject *) Py_NewRef(list[lower]);
     }
     
     // average
-    Py_ssize_t avg = (min + max) / 2;
+    Py_ssize_t avg = (lower + upper) / 2;
 
     // le procset de gauche 
-    ProcSetObject * left = _rec_merge(list, min, avg);
+    ProcSetObject * left = _rec_merge(list, lower, avg);
     // le pset de droite
-    ProcSetObject * right = _rec_merge(list, avg+1, max);
+    ProcSetObject * right = _rec_merge(list, avg+1, upper);
 
     // le resultat de leur union
     ProcSetObject * result = (ProcSetObject *) merge(left, right, bitwiseUnion);
 
-    // on autorise les deux a se faire GC car merge retourne un nouveau PSET 
-    // (c'est pour ca que je retourne une copy dans le cas trivial, sinon je perd une reference qui m'appartient )
-    // ProcSetType.tp_dealloc((PyObject * ) left);
-    // ProcSetType.tp_dealloc((PyObject * ) right);
+    // on libère nos références
     Py_DECREF(left);
     Py_DECREF(right);
     return result; 
@@ -824,7 +821,7 @@ ProcSet_fromStr(PyObject * Py_UNUSED(class), PyObject* args, PyObject * kwds){
 
     // aliases to make it easier to read
     PyListObject * objectASList = (PyListObject *) list_pset;
-    
+
     // This code is accessing the PyObject* buffer inside a PyListObject. 
     // This is the same buffer that is read when using PySequence_GetItem().
     // I'm only reading from the buffer so this is only half of a hazard.
