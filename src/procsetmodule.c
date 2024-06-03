@@ -543,7 +543,15 @@ _get_pset_from_args(PyObject * args){
 
     ProcSetObject* other = NULL;
     if (!PyErr_Occurred()){
-        other = _rec_merge((ProcSetObject **)((PyListObject *) list_pset)->ob_item, 0, lengthOfArgs-1);
+        // aliases to make it easier to read
+        PyListObject * objectASList = (PyListObject *) list_pset;
+
+        // This code is accessing the PyObject* buffer inside a PyListObject. 
+        // This is the same buffer that is read when using PySequence_GetItem().
+        // I'm only reading from the buffer so this is only half of a hazard.
+        // This will change when I implement another merge algorithm.
+        ProcSetObject ** tableauDePset = (ProcSetObject **) objectASList->ob_item;
+        other = _rec_merge(tableauDePset, 0, lengthOfArgs-1);
     }
 
     Py_XDECREF(currentItem);
@@ -814,7 +822,14 @@ ProcSet_fromStr(PyObject * Py_UNUSED(class), PyObject* args, PyObject * kwds){
         return NULL;
     }
 
-    ProcSetObject ** tableau_psets = (ProcSetObject **) ((PyListObject *) list_pset)->ob_item;
+    // aliases to make it easier to read
+    PyListObject * objectASList = (PyListObject *) list_pset;
+    
+    // This code is accessing the PyObject* buffer inside a PyListObject. 
+    // This is the same buffer that is read when using PySequence_GetItem().
+    // I'm only reading from the buffer so this is only half of a hazard.
+    // This will change when I implement another merge algorithm.
+    ProcSetObject ** tableau_psets = (ProcSetObject **) objectASList->ob_item;
     PyObject * res = (PyObject *) _rec_merge(tableau_psets, 0, PyList_Size(list_pset)-1);
     Py_DECREF(list_pset);
     return res;
