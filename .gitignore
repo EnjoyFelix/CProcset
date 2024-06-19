@@ -3,7 +3,7 @@ fonctions&impl.md
 .vscode
 main.py
 .builded-module
-.bin
+*.bin
 
 tests/*.html
 tests/assets/
