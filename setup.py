@@ -10,4 +10,5 @@ setup(
             extra_compile_args=["-g", "-Wall", "-Wextra", "-Werror", "-std=c99"],
         )
     ],
+    author="Elisée Chemin",
 )
